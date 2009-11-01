@@ -1,4 +1,4 @@
-#! ./tcc -run
+#! ./pts-tcc -run
 int printf(char const*fmt, ...);
 double sqrt(double x);
 int main() {
