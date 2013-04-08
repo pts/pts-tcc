@@ -37,11 +37,21 @@ echo "CONFIG_NOLDL=yes" >>tcc-0.9.25/config.mak
 
 rm -rf tcclibc
 mkdir tcclibc
-for F in "$UCLIBC_USR"/lib/lib*.a; do
+#-rw-r--r-- 1 pts eng 1233128 Nov 27  2010 libc.a
+#-rw-r--r-- 1 pts eng  214376 Nov 27  2010 libm.a
+#-rw-r--r-- 1 pts eng   16386 Nov 27  2010 libcrypt.a
+#-rw-r--r-- 1 pts eng   12024 Nov 27  2010 librt.a
+#-rw-r--r-- 1 pts eng    7668 Nov 27  2010 libutil.a
+# c,m: 329484 compressed
+# c,m,crypt,util: 336732 compressed
+for F in "$UCLIBC_USR"/lib/lib{c,m,crypt,util}.a; do
+  ls -l "$F"
   (cd tcclibc && ar x "$F") || exit "$?"
 done
 (cd tcclibc && ar x ../tcc-0.9.25/libtcc1.a) || exit "$?"
+rm -f tcclibc.a  # ar cr doesn't remove the file.
 (cd tcclibc && ar cr ../tcclibc.a *.o)
+ls -l tcclibc.a
 for F in tcclibc.a "$UCLIBC_USR"/lib/{crt1.o,crti.o,crtn.o}; do
   G="${F##*/}"
   export NAME="data_${G%.*}"
@@ -49,7 +59,8 @@ for F in tcclibc.a "$UCLIBC_USR"/lib/{crt1.o,crti.o,crtn.o}; do
 done >tcc-0.9.25/libcdata.s
 
 # make tcc does: /tmp/tccb/i386-uclibc-gcc -static -o tcc tcc.c -DTCC_TARGET_I386 -DCONFIG_TCC_STATIC -g -Wall -fno-strict-aliasing -mpreferred-stack-boundary=2 -march=i386 -falign-functions=0 -Wno-pointer-sign -Wno-sign-compare -D_FORTIFY_SOURCE=0 -lm
-(cd tcc-0.9.25 && $CC -o ../pts-tcc.uncompressed tcc.c libcdata.s -DTCC_TARGET_I386 -O2 -s -Wall -fno-strict-aliasing -mpreferred-stack-boundary=2 -march=i386 -falign-functions=0 -Wno-pointer-sign -Wno-sign-compare -D_FORTIFY_SOURCE=0 -lm -DCONFIG_TCC_STATIC) || exit "$?"
+(cd tcc-0.9.25 && $CC -static -o ../pts-tcc.uncompressed tcc.c libcdata.s -DTCC_TARGET_I386 -O2 -s -Wall -fno-strict-aliasing -mpreferred-stack-boundary=2 -march=i386 -falign-functions=0 -Wno-pointer-sign -Wno-sign-compare -D_FORTIFY_SOURCE=0 -lm -DCONFIG_TCC_STATIC) || exit "$?"
+ls -l pts-tcc.uncompressed
 cp -f pts-tcc.uncompressed pts-tcc
 upx.pts --best pts-tcc || upx --best pts-tcc
 ./elfosfix.pl pts-tcc pts-tcc.uncompressed

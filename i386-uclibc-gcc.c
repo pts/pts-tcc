@@ -1,9 +1,10 @@
 #define ALONE 1 /* vi: set sw=4 ts=4:
 set -ex
-CDEFS='-D__UCLIBC_CTOR_DTOR__ -D__UCLIBC_HAS_SHARED__ -D__UCLIBC_HAS_MMU__
-  -DUCLIBC_DEVEL_PREFIX="/usr/i386-linux-uclibc/usr/"
-  -DUCLIBC_BUILD_DIR="/uclibc/build/dir" -DGCC_BIN="gcc"'
-gcc -o c0 -O2  -W -Wall $CDEFS "$0"
+CDEFS="-D__UCLIBC_CTOR_DTOR__ -D__UCLIBC_HAS_SHARED__ -D__UCLIBC_HAS_MMU__
+  -DUCLIBC_DEVEL_PREFIX=\"${UCLIBC_USR:-/usr/i386-linux-uclibc/usr}/\"
+  -DUCLIBC_BUILD_DIR=\"/uclibc/build/dir\" -DGCC_BIN=\"gcc\""
+rm -f c0 i386-uclibc-gcc
+gcc -o c0 -O2 -W -Wall -m32 $CDEFS "$0"
 ./c0 -o i386-uclibc-gcc -s -static -Os $CDEFS -W -Wall "$0"
 rm -f c0
 echo 'int printf(char*fmt,...);main(){return 1>printf("he110\n");}' >test.c
@@ -13,6 +14,7 @@ grep -l he110 test.out
 ./i386-uclibc-gcc -o test test.c
 ./test >test.out
 grep -l he110 test.out
+ls -l test
 rm -f test test.c test.out
 : All OK
 exit
@@ -226,7 +228,9 @@ int main(int argc, char **argv)
 	char *crtn_path[2];
 	int len;
 	int ctor_dtor = 1, cplusplus = 0, use_nostdinc_plus = 0;
+#ifdef LIBGCC_DIR
 	int findlibgcc = 1;
+#endif
 	char *cpp = NULL;
 #endif
 #ifdef __UCLIBC_PROFILING__
@@ -238,7 +242,9 @@ int main(int argc, char **argv)
 	if (cc == NULL) {
 		cc = GCC_BIN;
 #ifdef __UCLIBC_CTOR_DTOR__
+#ifdef LIBGCC_DIR
 		findlibgcc = 0;
+#endif
 #endif
 	}
 
@@ -510,17 +516,21 @@ int main(int argc, char **argv)
 			int status, gcc_pipe[2];
 			pid_t pid, wpid;
 
-			pipe(gcc_pipe);
+			if (pipe(gcc_pipe) != 0) {
+				fprintf(stderr, "Unable to create pipe: %s", strerror(errno));
+				exit(EXIT_FAILURE);
+			}
 			if (!(pid = fork())) {
-				char *argv[4];
+				char *argv[5];
 				close(gcc_pipe[0]);
 				close(1);
 				close(2);
 				dup2(gcc_pipe[1], 1);
 				dup2(gcc_pipe[1], 2);
 				argv[0] = cc;
-				argv[1] = "-print-libgcc-file-name";
-				argv[2] = NULL;
+				argv[1] = "-m32";
+				argv[2] = "-print-libgcc-file-name";
+				argv[3] = NULL;
 				execvp(cc, argv);
 				close(gcc_pipe[1]);
 				_exit(EXIT_FAILURE);
@@ -557,10 +567,10 @@ crash_n_burn:
 		}
 #ifdef LIBGCC_DIR /**** pts ****/
 		else {
-			xstrcat(&(crtbegin_path[0]), LIBGCC_DIR, "crtbegin.o", NULL);
-			xstrcat(&(crtbegin_path[1]), LIBGCC_DIR, "crtbeginS.o", NULL);
-			xstrcat(&(crtend_path[0]), LIBGCC_DIR, "crtend.o", NULL);
-			xstrcat(&(crtend_path[1]), LIBGCC_DIR, "crtendS.o", NULL);
+			xstrcat(&(crtbegin_path[0]), LIBGCC_DIR, "/crtbegin.o", NULL);
+			xstrcat(&(crtbegin_path[1]), LIBGCC_DIR, "/crtbeginS.o", NULL);
+			xstrcat(&(crtend_path[0]), LIBGCC_DIR, "/crtend.o", NULL);
+			xstrcat(&(crtend_path[1]), LIBGCC_DIR, "/crtendS.o", NULL);
 		}
 #endif
 	}
@@ -570,6 +580,8 @@ crash_n_burn:
 	else
 #endif
 		gcc_argv[i++] = cc;
+
+	gcc_argv[i++] = "-m32";
 
 	for ( j = 1 ; j < argc ; j++ ) {
 		if (argv[j] != NULL) {
