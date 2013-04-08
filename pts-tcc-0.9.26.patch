@@ -1,0 +1,432 @@
+--- tcc-0.9.26/libtcc.c.orig	2013-04-08 16:41:02.585371186 +0200
++++ tcc-0.9.26/libtcc.c	2013-04-08 16:38:28.326210579 +0200
+@@ -646,20 +646,38 @@
+         return;
+ 
+     va_start(ap, fmt);
+     error1(s1, 1, fmt, ap);
+     va_end(ap);
+ }
+ 
+ /********************************************************/
+ /* I/O layer */
+ 
++extern char data_crt1[];
++extern char data_crti[];
++extern char data_crtn[];
++extern char data_tcclibc[];
++
++int open_data(char *data)
++{
++    off_t seek_to = (off_t)data;
++    /* This works even if compressed with upx. */
++    int fd = open("/proc/self/mem", O_RDONLY | O_BINARY);
++    if (fd >= 0 && seek_to != lseek(fd, seek_to, SEEK_SET)) {
++        close(fd);
++        return -1;
++    } else {
++        return fd;
++    }
++}
++
+ ST_FUNC void tcc_open_bf(TCCState *s1, const char *filename, int initlen)
+ {
+     BufferedFile *bf;
+     int buflen = initlen ? initlen : IO_BUF_SIZE;
+ 
+     bf = tcc_malloc(sizeof(BufferedFile) + buflen);
+     bf->buf_ptr = bf->buffer;
+     bf->buf_end = bf->buffer + initlen;
+     bf->buf_end[0] = CH_EOB; /* put eob symbol */
+     pstrcpy(bf->filename, sizeof(bf->filename), filename);
+@@ -683,20 +701,28 @@
+     }
+     file = bf->prev;
+     tcc_free(bf);
+ }
+ 
+ ST_FUNC int tcc_open(TCCState *s1, const char *filename)
+ {
+     int fd;
+     if (strcmp(filename, "-") == 0)
+         fd = 0, filename = "stdin";
++    else if (strcmp(filename, "///tmp///LIBTCC1.a") == 0)  /**** pts ****/
++        fd = open_data(data_tcclibc);
++    else if (strcmp(filename, "///tmp///crt1.o") == 0)  /**** pts ****/
++        fd = open_data(data_crt1);
++    else if (strcmp(filename, "///tmp///crti.o") == 0)  /**** pts ****/
++        fd = open_data(data_crti);
++    else if (strcmp(filename, "///tmp///crtn.o") == 0)  /**** pts ****/
++        fd = open_data(data_crtn);
+     else
+         fd = open(filename, O_RDONLY | O_BINARY);
+     if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
+         printf("%s %*s%s\n", fd < 0 ? "nf":"->",
+                (int)(s1->include_stack_ptr - s1->include_stack), "", filename);
+     if (fd < 0)
+         return -1;
+ 
+     tcc_open_bf(s1, filename, 0);
+     file->fd = fd;
+@@ -899,20 +925,21 @@
+     s = tcc_mallocz(sizeof(TCCState));
+     if (!s)
+         return NULL;
+     tcc_state = s;
+ #ifdef _WIN32
+     tcc_set_lib_path_w32(s);
+ #else
+     tcc_set_lib_path(s, CONFIG_TCCDIR);
+ #endif
+     s->output_type = TCC_OUTPUT_MEMORY;
++    s->static_link = 1;  /**** pts ****/
+     preprocess_new();
+     s->include_stack_ptr = s->include_stack;
+ 
+     /* we add dummy defines for some special macros to speed up tests
+        and to have working defined() */
+     define_push(TOK___LINE__, MACRO_OBJ, NULL, NULL);
+     define_push(TOK___FILE__, MACRO_OBJ, NULL, NULL);
+     define_push(TOK___DATE__, MACRO_OBJ, NULL, NULL);
+     define_push(TOK___TIME__, MACRO_OBJ, NULL, NULL);
+ 
+@@ -978,22 +1005,24 @@
+ #ifdef TCC_TARGET_PE
+     tcc_define_symbol(s, "__WCHAR_TYPE__", "unsigned short");
+ #else
+     tcc_define_symbol(s, "__WCHAR_TYPE__", "int");
+ #endif
+ 
+ #ifndef TCC_TARGET_PE
+     /* glibc defines */
+     tcc_define_symbol(s, "__REDIRECT(name, proto, alias)", "name proto __asm__ (#alias)");
+     tcc_define_symbol(s, "__REDIRECT_NTH(name, proto, alias)", "name proto __asm__ (#alias) __THROW");
++#if 0  /**** pts ****/
+     /* default library paths */
+     tcc_add_library_path(s, CONFIG_TCC_LIBPATHS);
++#endif
+     /* paths for crt objects */
+     tcc_split_path(s, (void ***)&s->crt_paths, &s->nb_crt_paths, CONFIG_TCC_CRTPREFIX);
+ #endif
+ 
+     /* no section zero */
+     dynarray_add((void ***)&s->sections, &s->nb_sections, NULL);
+ 
+     /* create standard sections */
+     text_section = new_section(s, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR);
+     data_section = new_section(s, ".data", SHT_PROGBITS, SHF_ALLOC | SHF_WRITE);
+@@ -1145,36 +1174,36 @@
+     if (!strcmp(ext, "s")) {
+         /* non preprocessed assembler */
+         ret = tcc_assemble(s1, 0);
+         goto the_end;
+     }
+ #endif
+ 
+     fd = file->fd;
+     /* assume executable format: auto guess file type */
+     size = read(fd, &ehdr, sizeof(ehdr));
+-    lseek(fd, 0, SEEK_SET);
++    if (size > 0) lseek(fd, -size, SEEK_CUR);
+     if (size <= 0) {
+         tcc_error_noabort("could not read header");
+         goto the_end;
+     }
+ 
+     if (size == sizeof(ehdr) &&
+         ehdr.e_ident[0] == ELFMAG0 &&
+         ehdr.e_ident[1] == ELFMAG1 &&
+         ehdr.e_ident[2] == ELFMAG2 &&
+         ehdr.e_ident[3] == ELFMAG3) {
+ 
+         /* do not display line number if error */
+         file->line_num = 0;
+         if (ehdr.e_type == ET_REL) {
+-            ret = tcc_load_object_file(s1, fd, 0);
++            ret = tcc_load_object_file(s1, fd, lseek(fd, 0, SEEK_CUR));
+             goto the_end;
+ 
+         }
+ #ifndef TCC_TARGET_PE
+         if (ehdr.e_type == ET_DYN) {
+             if (s1->output_type == TCC_OUTPUT_MEMORY) {
+ #ifdef TCC_IS_NATIVE
+                 void *h;
+                 h = dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
+                 if (h)
+--- tcc-0.9.26/tcc.c.orig	2013-04-08 16:41:02.585371186 +0200
++++ tcc-0.9.26/tcc.c	2013-04-08 16:38:28.326210579 +0200
+@@ -19,21 +19,21 @@
+  */
+ 
+ #ifdef ONE_SOURCE
+ #include "libtcc.c"
+ #else
+ #include "tcc.h"
+ #endif
+ 
+ static void help(void)
+ {
+-    printf("tcc version " TCC_VERSION " - Tiny C Compiler - Copyright (C) 2001-2006 Fabrice Bellard\n"
++    printf("pts-tcc v " TCC_VERSION " - Tiny C Compiler - Copyright (C) 2001-2006 Fabrice Bellard\n"
+            "Usage: tcc [options...] [-o outfile] [-c] infile(s)...\n"
+            "       tcc [options...] -run infile [arguments...]\n"
+            "General options:\n"
+            "  -c          compile only - generate an object file\n"
+            "  -o outfile  set output filename\n"
+            "  -run        run compiled source\n"
+            "  -fflag      set or reset (with 'no-' prefix) 'flag' (see man page)\n"
+            "  -Wwarning   set or reset (with 'no-' prefix) 'warning' (see man page)\n"
+            "  -w          disable all warnings\n"
+            "  -v          show version\n"
+@@ -183,21 +183,21 @@
+     int i;
+     printf("%s:\n%s", msg, nb_paths ? "" : "  -\n");
+     for(i = 0; i < nb_paths; i++)
+         printf("  %s\n", paths[i]);
+ }
+ 
+ static void display_info(TCCState *s, int what)
+ {
+     switch (what) {
+     case 0:
+-        printf("tcc version %s ("
++        printf("pts-tcc version %s ("
+ #ifdef TCC_TARGET_I386
+         "i386"
+ # ifdef TCC_TARGET_PE
+         " Win32"
+ # endif
+ #elif defined TCC_TARGET_X86_64
+         "x86-64"
+ # ifdef TCC_TARGET_PE
+         " Win64"
+ # endif
+--- tcc-0.9.26/tccelf.c.orig	2013-04-08 16:41:02.595371132 +0200
++++ tcc-0.9.26/tccelf.c	2013-04-08 16:40:19.835603161 +0200
+@@ -1353,26 +1353,32 @@
+     return tcc_add_file(s1, buf);
+ }
+ 
+ /* add tcc runtime libraries */
+ ST_FUNC void tcc_add_runtime(TCCState *s1)
+ {
+     tcc_add_bcheck(s1);
+ 
+     /* add libc */
+     if (!s1->nostdlib) {
++#if 0 /**** pts ****/
+         tcc_add_library(s1, "c");
++#endif
+ #ifdef CONFIG_USE_LIBGCC
++#if 0 /**** pts ****/
+         tcc_add_file(s1, TCC_LIBGCC);
+ #elif !defined WITHOUT_LIBTCC
+         tcc_add_support(s1, "libtcc1.a");
+ #endif
++#else
++        tcc_add_file(s1, "///tmp///LIBTCC1.a");
++#endif
+         /* add crt end if not memory output */
+         if (s1->output_type != TCC_OUTPUT_MEMORY)
+             tcc_add_crt(s1, "crtn.o");
+     }
+ }
+ 
+ /* add various standard linker symbols (must be done after the
+    sections are filled (for example after allocating common
+    symbols)) */
+ ST_FUNC void tcc_add_linker_symbols(TCCState *s1)
+@@ -2333,21 +2339,21 @@
+     }
+     return ret;
+ }
+ 
+ static void *load_data(int fd, unsigned long file_offset, unsigned long size)
+ {
+     void *data;
+ 
+     data = tcc_malloc(size);
+     lseek(fd, file_offset, SEEK_SET);
+-    read(fd, data, size);
++    if (size != read(fd, data, size)) abort();
+     return data;
+ }
+ 
+ typedef struct SectionMergeInfo {
+     Section *s;            /* corresponding existing section */
+     unsigned long offset;  /* offset of the new section in the existing section */
+     uint8_t new_section;       /* true if section 's' was added */
+     uint8_t link_once;         /* true if link once section */
+ } SectionMergeInfo;
+ 
+@@ -2650,21 +2656,21 @@
+     char ar_size[10];           /* file size, printed as decimal */
+     char ar_fmag[2];            /* should contain ARFMAG */
+ } ArchiveHeader;
+ 
+ static int get_be32(const uint8_t *b)
+ {
+     return b[3] | (b[2] << 8) | (b[1] << 16) | (b[0] << 24);
+ }
+ 
+ /* load only the objects which resolve undefined symbols */
+-static int tcc_load_alacarte(TCCState *s1, int fd, int size)
++static int tcc_load_alacarte(TCCState *s1, int fd, int size, int base_off)
+ {
+     int i, bound, nsyms, sym_index, off, ret;
+     uint8_t *data;
+     const char *ar_names, *p;
+     const uint8_t *ar_index;
+     ElfW(Sym) *sym;
+ 
+     data = tcc_malloc(size);
+     if (read(fd, data, size) != size)
+         goto fail;
+@@ -2672,21 +2678,21 @@
+     ar_index = data + 4;
+     ar_names = ar_index + nsyms * 4;
+ 
+     do {
+         bound = 0;
+         for(p = ar_names, i = 0; i < nsyms; i++, p += strlen(p)+1) {
+             sym_index = find_elf_sym(symtab_section, p);
+             if(sym_index) {
+                 sym = &((ElfW(Sym) *)symtab_section->data)[sym_index];
+                 if(sym->st_shndx == SHN_UNDEF) {
+-                    off = get_be32(ar_index + i * 4) + sizeof(ArchiveHeader);
++                    off = base_off + get_be32(ar_index + i * 4) + sizeof(ArchiveHeader);
+ #if 0
+                     printf("%5d\t%s\t%08x\n", i, p, sym->st_shndx);
+ #endif
+                     ++bound;
+                     lseek(fd, off, SEEK_SET);
+                     if(tcc_load_object_file(s1, fd, off) < 0) {
+                     fail:
+                         ret = -1;
+                         goto the_end;
+                     }
+@@ -2718,33 +2724,36 @@
+         if (len == 0)
+             break;
+         if (len != sizeof(hdr)) {
+             tcc_error_noabort("invalid archive");
+             return -1;
+         }
+         memcpy(ar_size, hdr.ar_size, sizeof(hdr.ar_size));
+         ar_size[sizeof(hdr.ar_size)] = '\0';
+         size = strtol(ar_size, NULL, 0);
+         memcpy(ar_name, hdr.ar_name, sizeof(hdr.ar_name));
++        if (hdr.ar_name[0] == '\001' && hdr.ar_name[1] == '\000')
++            break;  /**** pts ****/ /* end of tcclibc.a */
+         for(i = sizeof(hdr.ar_name) - 1; i >= 0; i--) {
+             if (ar_name[i] != ' ')
+                 break;
+         }
+         ar_name[i + 1] = '\0';
+-        //        printf("name='%s' size=%d %s\n", ar_name, size, ar_size);
++        /* printf("name='%s' size=%d %s\n", ar_name, size, ar_size); */
+         file_offset = lseek(fd, 0, SEEK_CUR);
+         /* align to even */
+         size = (size + 1) & ~1;
+         if (!strcmp(ar_name, "/")) {
+             /* coff symbol table : we handle it */
+-            if(s1->alacarte_link)
+-                return tcc_load_alacarte(s1, fd, size);
++            if(s1->alacarte_link) {
++                return tcc_load_alacarte(s1, fd, size, file_offset - sizeof(hdr) - sizeof(magic));
++            }
+         } else if (!strcmp(ar_name, "//") ||
+                    !strcmp(ar_name, "__.SYMDEF") ||
+                    !strcmp(ar_name, "__.SYMDEF/") ||
+                    !strcmp(ar_name, "ARFILENAMES/")) {
+             /* skip symbol table or archive names */
+         } else {
+             if (tcc_load_object_file(s1, fd, file_offset) < 0)
+                 return -1;
+         }
+         lseek(fd, file_offset + size, SEEK_SET);
+--- tcc-0.9.26/tccpp.c.orig	2013-04-08 16:41:02.595371132 +0200
++++ tcc-0.9.26/tccpp.c	2013-04-08 16:38:28.326210579 +0200
+@@ -1761,20 +1761,26 @@
+ }
+ 
+ static void bn_zero(unsigned int *bn)
+ {
+     int i;
+     for(i=0;i<BN_SIZE;i++) {
+         bn[i] = 0;
+     }
+ }
+ 
++double ldexp(double d, int exp) {  /**** pts ****/
++  while (exp > 0) { d *= 2; --exp; }
++  while (exp < 0) { d /= 2; ++exp; }
++  return d;
++}
++
+ /* parse number in null terminated string 'p' and return it in the
+    current token */
+ static void parse_number(const char *p)
+ {
+     int b, t, shift, frac_bits, s, exp_val, ch;
+     char *q;
+     unsigned int bn[BN_SIZE];
+     double d;
+ 
+     /* number */
+--- tcc-0.9.26/tcc.h.orig	2013-04-08 16:41:02.615371024 +0200
++++ tcc-0.9.26/tcc.h	2013-04-08 16:38:28.326210579 +0200
+@@ -156,23 +156,27 @@
+ # define CONFIG_SYSROOT ""
+ #endif
+ #ifndef CONFIG_TCCDIR
+ # define CONFIG_TCCDIR "."
+ #endif
+ #ifndef CONFIG_LDDIR
+ # define CONFIG_LDDIR "lib"
+ #endif
+ 
+ /* path to find crt1.o, crti.o and crtn.o */
++#if 0 /**** pts ****/
+ #ifndef CONFIG_TCC_CRTPREFIX
+ # define CONFIG_TCC_CRTPREFIX CONFIG_SYSROOT "/usr/" CONFIG_LDDIR
+ #endif
++#else
++#define CONFIG_TCC_CRTPREFIX "///tmp//"
++#endif
+ 
+ /* Below: {B} is substituted by CONFIG_TCCDIR (rsp. -B option) */
+ 
+ /* system include paths */
+ #ifndef CONFIG_TCC_SYSINCLUDEPATHS
+ # ifdef TCC_TARGET_PE
+ #  define CONFIG_TCC_SYSINCLUDEPATHS "{B}/include;{B}/include/winapi"
+ # elif defined CONFIG_MULTIARCHDIR
+ #  define CONFIG_TCC_SYSINCLUDEPATHS \
+         CONFIG_SYSROOT "/usr/local/include" \
+--- tcc-0.9.26/configure.orig	2013-04-08 16:41:02.625370972 +0200
++++ tcc-0.9.26/configure	2013-04-08 16:38:28.336210527 +0200
+@@ -39,21 +39,21 @@
+ mingw32="no"
+ LIBSUF=".a"
+ EXESUF=""
+ tcc_sysincludepaths=""
+ tcc_libpaths=""
+ tcc_crtprefix=""
+ tcc_elfinterp=""
+ tcc_lddir=
+ confvars=
+ 
+-cpu=`uname -m`
++cpu=i686
+ 
+ # OS specific
+ targetos=`uname -s`
+ case $targetos in
+   MINGW32*)  mingw32=yes;;
+   DragonFly) noldl=yes;;
+   OpenBSD)   noldl=yes;;
+   *) ;;
+ esac
+ 
