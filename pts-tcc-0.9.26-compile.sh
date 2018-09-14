@@ -37,7 +37,8 @@ type -p bzip2 || die "bzip2: command not found"
 mkdir -p dl
 
 if ! test -f dl/tcc-0.9.26.tar.bz2; then
-  wget -nv -O dl/tcc-0.9.26.tar.bz2.tmp http://download.savannah.nongnu.org/releases/tinycc/tcc-0.9.26.tar.bz2
+  # Original download URL: http://download.savannah.nongnu.org/releases/tinycc/tcc-0.9.26.tar.bz2
+  wget -nv -O dl/tcc-0.9.26.tar.bz2.tmp https://github.com/pts/pts-tcc/releases/download/tcc/tcc-0.9.26.tar.bz2
   mv dl/tcc-0.9.26.tar.bz2.tmp dl/tcc-0.9.26.tar.bz2
 fi
 

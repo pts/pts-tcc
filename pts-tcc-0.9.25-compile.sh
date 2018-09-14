@@ -22,7 +22,8 @@ type -p gcc
 type -p ld
 type -p perl
 
-test -f tcc-0.9.25.tar.bz2 || wget http://download.savannah.nongnu.org/releases/tinycc/tcc-0.9.25.tar.bz2
+# Original download URL: http://download.savannah.nongnu.org/releases/tinycc/tcc-0.9.25.tar.bz2
+test -f tcc-0.9.25.tar.bz2 || wget https://github.com/pts/pts-tcc/releases/download/tcc/tcc-0.9.25.tar.bz2
 test -f tcc-0.9.25.tar.bz2
 test -f pts-tcc-0.9.25.patch || wget http://pts-mini-gpl.googlecode.com/svn/trunk/pts-tcc/pts-tcc-0.9.25.patch
 test pts-tcc-0.9.25.patch
