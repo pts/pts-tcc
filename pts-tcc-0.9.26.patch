@@ -1,5 +1,5 @@
---- tcc-0.9.26/libtcc.c.orig	2013-04-08 16:41:02.585371186 +0200
-+++ tcc-0.9.26/libtcc.c	2013-04-08 16:38:28.326210579 +0200
+--- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
++++ tcc-0.9.26/libtcc.c	2018-09-14 15:07:28.292462995 +0200
 @@ -646,20 +646,38 @@
          return;
  
@@ -154,8 +154,8 @@
                  void *h;
                  h = dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
                  if (h)
---- tcc-0.9.26/tcc.c.orig	2013-04-08 16:41:02.585371186 +0200
-+++ tcc-0.9.26/tcc.c	2013-04-08 16:38:28.326210579 +0200
+--- orig/tcc-0.9.26/tcc.c	2013-02-15 15:24:00.000000000 +0100
++++ tcc-0.9.26/tcc.c	2018-09-14 15:07:28.292462995 +0200
 @@ -19,21 +19,21 @@
   */
  
@@ -202,8 +202,8 @@
  # ifdef TCC_TARGET_PE
          " Win64"
  # endif
---- tcc-0.9.26/tccelf.c.orig	2013-04-08 16:41:02.595371132 +0200
-+++ tcc-0.9.26/tccelf.c	2013-04-08 16:40:19.835603161 +0200
+--- orig/tcc-0.9.26/tccelf.c	2013-02-15 15:24:00.000000000 +0100
++++ tcc-0.9.26/tccelf.c	2018-09-14 15:07:28.292462995 +0200
 @@ -1353,26 +1353,32 @@
      return tcc_add_file(s1, buf);
  }
@@ -346,9 +346,96 @@
                  return -1;
          }
          lseek(fd, file_offset + size, SEEK_SET);
---- tcc-0.9.26/tccpp.c.orig	2013-04-08 16:41:02.595371132 +0200
-+++ tcc-0.9.26/tccpp.c	2013-04-08 16:38:28.326210579 +0200
-@@ -1761,20 +1761,26 @@
+--- orig/tcc-0.9.26/tccgen.c	2013-02-15 15:24:00.000000000 +0100
++++ tcc-0.9.26/tccgen.c	2018-09-14 15:11:25.605105265 +0200
+@@ -4123,22 +4123,22 @@
+                 if (is_float(vtop->type.t)) {
+                     rc = RC_FLOAT;
+ #ifdef TCC_TARGET_X86_64
+                     if ((vtop->type.t & VT_BTYPE) == VT_LDOUBLE) {
+                         rc = RC_ST0;
+                     }
+ #endif
+                 }
+                 else
+                     rc = RC_INT;
+-                    gv(rc);
+-                    save_regs(1);
++                gv(rc);
++                save_regs(1);
+             }
+             if (tok == ':' && gnu_ext) {
+                 gv_dup();
+                 tt = gtst(1, 0);
+             } else {
+                 tt = gtst(1, 0);
+                 gexpr();
+             }
+             type1 = vtop->type;
+             sv = *vtop; /* save value to handle it later */
+@@ -4894,20 +4894,21 @@
+             (bt == VT_BYTE ||
+              bt == VT_SHORT ||
+              bt == VT_DOUBLE ||
+              bt == VT_LDOUBLE ||
+              bt == VT_LLONG ||
+              (bt == VT_INT && bit_size != 32)))
+             tcc_error("initializer element is not computable at load time");
+         switch(bt) {
+         case VT_BOOL:
+             vtop->c.i = (vtop->c.i != 0);
++            /*fallthrough*/
+         case VT_BYTE:
+             *(char *)ptr |= (vtop->c.i & bit_mask) << bit_pos;
+             break;
+         case VT_SHORT:
+             *(short *)ptr |= (vtop->c.i & bit_mask) << bit_pos;
+             break;
+         case VT_DOUBLE:
+             *(double *)ptr = vtop->c.d;
+             break;
+         case VT_LDOUBLE:
+--- orig/tcc-0.9.26/tccpp.c	2013-02-15 15:24:00.000000000 +0100
++++ tcc-0.9.26/tccpp.c	2018-09-14 15:11:14.756893054 +0200
+@@ -275,35 +275,37 @@
+     case TOK_CULLONG:
+         /* XXX: not quite exact, but only useful for testing  */
+ #ifdef _WIN32
+         sprintf(p, "%u", (unsigned)cv->ull);
+ #else
+         sprintf(p, "%Lu", cv->ull);
+ #endif
+         break;
+     case TOK_LCHAR:
+         cstr_ccat(&cstr_buf, 'L');
++        /*fallthrough*/
+     case TOK_CCHAR:
+         cstr_ccat(&cstr_buf, '\'');
+         add_char(&cstr_buf, cv->i);
+         cstr_ccat(&cstr_buf, '\'');
+         cstr_ccat(&cstr_buf, '\0');
+         break;
+     case TOK_PPNUM:
+         cstr = cv->cstr;
+         len = cstr->size - 1;
+         for(i=0;i<len;i++)
+             add_char(&cstr_buf, ((unsigned char *)cstr->data)[i]);
+         cstr_ccat(&cstr_buf, '\0');
+         break;
+     case TOK_LSTR:
+         cstr_ccat(&cstr_buf, 'L');
++        /*fallthrough*/
+     case TOK_STR:
+         cstr = cv->cstr;
+         cstr_ccat(&cstr_buf, '\"');
+         if (v == TOK_STR) {
+             len = cstr->size - 1;
+             for(i=0;i<len;i++)
+                 add_char(&cstr_buf, ((unsigned char *)cstr->data)[i]);
+         } else {
+             len = (cstr->size / sizeof(nwchar_t)) - 1;
+             for(i=0;i<len;i++)
+@@ -1761,20 +1763,26 @@
  }
  
  static void bn_zero(unsigned int *bn)
@@ -375,8 +462,8 @@
      double d;
  
      /* number */
---- tcc-0.9.26/tcc.h.orig	2013-04-08 16:41:02.615371024 +0200
-+++ tcc-0.9.26/tcc.h	2013-04-08 16:38:28.326210579 +0200
+--- orig/tcc-0.9.26/tcc.h	2013-02-15 15:24:00.000000000 +0100
++++ tcc-0.9.26/tcc.h	2018-09-14 15:07:28.292462995 +0200
 @@ -156,23 +156,27 @@
  # define CONFIG_SYSROOT ""
  #endif
@@ -405,8 +492,8 @@
  # elif defined CONFIG_MULTIARCHDIR
  #  define CONFIG_TCC_SYSINCLUDEPATHS \
          CONFIG_SYSROOT "/usr/local/include" \
---- tcc-0.9.26/configure.orig	2013-04-08 16:41:02.625370972 +0200
-+++ tcc-0.9.26/configure	2013-04-08 16:38:28.336210527 +0200
+--- orig/tcc-0.9.26/configure	2013-02-15 15:24:00.000000000 +0100
++++ tcc-0.9.26/configure	2018-09-14 15:07:28.292462995 +0200
 @@ -39,21 +39,21 @@
  mingw32="no"
  LIBSUF=".a"
