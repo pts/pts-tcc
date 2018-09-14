@@ -1,0 +1,8 @@
+*~
+gcctest.s
+*.good
+pts-tcc
+pts-tcc.uncompressed
+tcc-0.9.26
+tcclibc.a
+tcclibc
