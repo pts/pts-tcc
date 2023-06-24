@@ -258,7 +258,7 @@
  }
  
 --- orig/tcc-0.9.26/tcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.c	2018-09-14 15:07:28.292462995 +0200
++++ tcc-0.9.26/tcc.c	2023-06-24 10:47:57.576840425 +0200
 @@ -19,21 +19,21 @@
   */
  
@@ -282,7 +282,67 @@
             "  -Wwarning   set or reset (with 'no-' prefix) 'warning' (see man page)\n"
             "  -w          disable all warnings\n"
             "  -v          show version\n"
-@@ -183,21 +183,21 @@
+@@ -67,20 +67,37 @@
+            "  -nostdinc   do not use standard system include paths\n"
+            "  -nostdlib   do not link with standard crt and libraries\n"
+            "  -Bdir       use 'dir' as tcc internal library and include path\n"
+            "  -MD         generate target dependencies for make\n"
+            "  -MF depfile put generated dependencies here\n"
+            );
+ }
+ 
+ /* re-execute the i386/x86_64 cross-compilers with tcc -m32/-m64: */
+ #if defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64
++#ifdef CONFIG_NO_EXEC
++static void exec_other_tcc(TCCState *s, char **argv, const char *optarg) {
++    switch (atoi(optarg)) {
++        case 0: /* ignore -march etc. */
++            break;
++#ifdef TCC_TARGET_I386
++        case 32: break;
++        case 64:
++#else
++        case 64: break;
++        case 32:
++#endif
++        default:
++            tcc_error("unsupported option \"-m%s\"", optarg);
++    }
++}
++#else
+ #ifdef _WIN32
+ #include <process.h>
+ static int execvp_win32(const char *prog, char **argv)
+ {
+     int ret = spawnvp(P_NOWAIT, prog, (char const*const*)argv);
+     if (-1 == ret)
+         return ret;
+     cwait(&ret, ret, WAIT_CHILD);
+     exit(ret);
+ }
+@@ -109,20 +126,21 @@
+                     printf("tcc: using '%s'\n", child_name), fflush(stdout);
+                 execvp(argv[0] = child_path, argv);
+             }
+             tcc_error("'%s' not found", child_name);
+         case 0: /* ignore -march etc. */
+             break;
+         default:
+             tcc_warning("unsupported option \"-m%s\"", optarg);
+     }
+ }
++#endif  /* else CONFIG_NO_EXEC */
+ #else
+ #define exec_other_tcc(s, argv, optarg)
+ #endif
+ 
+ static void gen_makedeps(TCCState *s, const char *target, const char *filename)
+ {
+     FILE *depout;
+     char buf[1024], *ext;
+     int i;
+ 
+@@ -183,21 +201,21 @@
      int i;
      printf("%s:\n%s", msg, nb_paths ? "" : "  -\n");
      for(i = 0; i < nb_paths; i++)
@@ -306,10 +366,26 @@
          " Win64"
  # endif
 --- orig/tcc-0.9.26/tccelf.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tccelf.c	2023-06-24 09:29:42.401674037 +0200
-@@ -1353,29 +1353,39 @@
++++ tcc-0.9.26/tccelf.c	2023-06-24 10:12:41.428426702 +0200
+@@ -1339,43 +1339,55 @@
+         pinit[0] = 0xe8;
+         put32(pinit + 1, -4);
+         sym_index = find_elf_sym(symtab_section, "__bound_init");
+         put_elf_reloc(symtab_section, init_section,
+                       init_section->data_offset - 4, R_386_PC32, sym_index);
+     }
+ #endif
+ #endif
+ }
+ 
++#if defined(CONFIG_USE_LIGCC) && !defined(WITHOUT_LIBTCC)
+ static inline int tcc_add_support(TCCState *s1, const char *filename)
+ {
+     char buf[1024];
+     snprintf(buf, sizeof(buf), "%s/%s", s1->tcc_lib_path, filename);
      return tcc_add_file(s1, buf);
  }
++#endif
  
  /* add tcc runtime libraries */
  ST_FUNC void tcc_add_runtime(TCCState *s1)
@@ -348,7 +424,7 @@
  {
      char buf[1024];
      int i;
-@@ -2333,21 +2343,21 @@
+@@ -2333,21 +2345,21 @@
      }
      return ret;
  }
@@ -371,7 +447,7 @@
      uint8_t link_once;         /* true if link once section */
  } SectionMergeInfo;
  
-@@ -2650,21 +2660,21 @@
+@@ -2650,21 +2662,21 @@
      char ar_size[10];           /* file size, printed as decimal */
      char ar_fmag[2];            /* should contain ARFMAG */
  } ArchiveHeader;
@@ -394,7 +470,7 @@
      data = tcc_malloc(size);
      if (read(fd, data, size) != size)
          goto fail;
-@@ -2672,21 +2682,21 @@
+@@ -2672,21 +2684,21 @@
      ar_index = data + 4;
      ar_names = ar_index + nsyms * 4;
  
@@ -417,7 +493,7 @@
                          ret = -1;
                          goto the_end;
                      }
-@@ -2718,33 +2728,36 @@
+@@ -2718,33 +2730,36 @@
          if (len == 0)
              break;
          if (len != sizeof(hdr)) {
@@ -574,8 +650,8 @@
  
      /* number */
 --- orig/tcc-0.9.26/tcc.h	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.h	2023-06-24 10:04:47.154126891 +0200
-@@ -28,30 +28,39 @@
++++ tcc-0.9.26/tcc.h	2023-06-24 10:42:15.270067525 +0200
+@@ -28,30 +28,37 @@
  #include "tccboot.h"
  #define CONFIG_TCC_STATIC
  #else
@@ -592,10 +668,8 @@
  #include <time.h>
  
 +#ifdef __MINILIBC686__  /* TODO(pts): Remove this once minilibc gets the functionality. */
-+int execvp(const char *file, char *const argv[]);
 +unsigned long int strtoul(const char *nptr, char **endptr, int base);
 +unsigned long long int strtoull(const char *nptr, char **endptr, int base);
-+FILE *fdopen(int fd, const char *mode);
 +long long int strtoll(const char *nptr, char **endptr, int base);
 +float strtof (const char *__nptr, char **__endptr);
 +long double strtold (const char *__nptr, char **__endptr);
@@ -618,7 +692,7 @@
  # include <direct.h> /* getcwd */
  # ifdef __GNUC__
  #  include <stdint.h>
-@@ -129,50 +138,64 @@
+@@ -129,50 +136,64 @@
  #if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_C67)
  #define CONFIG_TCC_ASM
  #endif
