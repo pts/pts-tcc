@@ -163,11 +163,13 @@ done >tcc-0.9.26/libcdata.s
 
 ls -l pts-tcc.uncompressed
 rm -f pts-tcc
+rm -f pts-tcc.ubr
 # upx --lzma: 312548 bytes
 # upx --ultra-brute --lzma: 313420 bytes
 # upx --ultra-brute --no-lzma: 350180 bytes
 # LZMA decompression is slower, but it saves many bytes, so we use it.
 dl/upx --lzma -o pts-tcc pts-tcc.uncompressed
+dl/upx --ultra-brute --no-lzma -o pts-tcc.ubr pts-tcc.uncompressed
 # elfosfix.pl, needed only for pts-tcc.uncompressed.
 # Change ELF executable system type from SYSV to GNU/Linux.
 dl/perl -0777 -pi -e 'die if !s@\A(\177ELF...)[\0\3]@$1\003@s' pts-tcc pts-tcc.uncompressed
