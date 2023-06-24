@@ -1,5 +1,5 @@
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/libtcc.c	2023-06-24 09:40:48.071286465 +0200
++++ tcc-0.9.26/libtcc.c	2023-06-24 10:01:36.122811748 +0200
 @@ -646,20 +646,42 @@
          return;
  
@@ -159,7 +159,35 @@
      /* create standard sections */
      text_section = new_section(s, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR);
      data_section = new_section(s, ".data", SHT_PROGBITS, SHF_ALLOC | SHF_WRITE);
-@@ -1145,36 +1189,36 @@
+@@ -1036,25 +1080,27 @@
+     /* free all sections */
+     for(i = 1; i < s1->nb_sections; i++)
+         free_section(s1->sections[i]);
+     dynarray_reset(&s1->sections, &s1->nb_sections);
+ 
+     for(i = 0; i < s1->nb_priv_sections; i++)
+         free_section(s1->priv_sections[i]);
+     dynarray_reset(&s1->priv_sections, &s1->nb_priv_sections);
+         
+     /* free any loaded DLLs */
++#if defined(TCC_IS_NATIVE) && defined(TCC_TARGET_PE)
+     for ( i = 0; i < s1->nb_loaded_dlls; i++) {
+         DLLReference *ref = s1->loaded_dlls[i];
+         if ( ref->handle )
+             dlclose(ref->handle);
+     }
++#endif
+     
+     /* free loaded dlls array */
+     dynarray_reset(&s1->loaded_dlls, &s1->nb_loaded_dlls);
+ 
+     /* free library paths */
+     dynarray_reset(&s1->library_paths, &s1->nb_library_paths);
+     dynarray_reset(&s1->crt_paths, &s1->nb_crt_paths);
+ 
+     /* free include paths */
+     dynarray_reset(&s1->cached_includes, &s1->nb_cached_includes);
+@@ -1145,36 +1191,36 @@
      if (!strcmp(ext, "s")) {
          /* non preprocessed assembler */
          ret = tcc_assemble(s1, 0);
@@ -198,7 +226,7 @@
                  void *h;
                  h = dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
                  if (h)
-@@ -1336,26 +1380,30 @@
+@@ -1336,26 +1382,30 @@
          put_stabs("", 0, 0, 0, 0);
      }
  
@@ -546,14 +574,19 @@
  
      /* number */
 --- orig/tcc-0.9.26/tcc.h	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.h	2023-06-23 17:29:32.961318892 +0200
-@@ -33,20 +33,32 @@
++++ tcc-0.9.26/tcc.h	2023-06-24 10:04:47.154126891 +0200
+@@ -28,30 +28,39 @@
+ #include "tccboot.h"
+ #define CONFIG_TCC_STATIC
+ #else
+ 
+ #include <stdlib.h>
  #include <stdio.h>
  #include <stdarg.h>
  #include <string.h>
  #include <errno.h>
  #include <math.h>
- #include <signal.h>
+-#include <signal.h>
  #include <fcntl.h>
  #include <setjmp.h>
  #include <time.h>
@@ -573,14 +606,57 @@
  #ifndef _WIN32
  # include <unistd.h>
  # include <sys/time.h>
- # include <sys/ucontext.h>
- # include <sys/mman.h>
+-# include <sys/ucontext.h>
+-# include <sys/mman.h>
  # ifndef CONFIG_TCC_STATIC
  #  include <dlfcn.h>
  # endif
  #else
  # include <windows.h>
-@@ -156,23 +168,27 @@
+ # include <sys/timeb.h>
+ # include <io.h> /* open, close etc. */
+ # include <direct.h> /* getcwd */
+ # ifdef __GNUC__
+ #  include <stdint.h>
+@@ -129,50 +138,64 @@
+ #if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_C67)
+ #define CONFIG_TCC_ASM
+ #endif
+ 
+ /* object format selection */
+ #if defined(TCC_TARGET_C67)
+ #define TCC_TARGET_COFF
+ #endif
+ 
+ /* only native compiler supports -run */
+-#if defined _WIN32 == defined TCC_TARGET_PE
++#undef TCC_IS_NATIVE
++#ifdef CONFIG_NO_RUN
++#elif defined _WIN32 == defined TCC_TARGET_PE
+ # if (defined __i386__ || defined _X86_) && defined TCC_TARGET_I386
+ #  define TCC_IS_NATIVE
+ # elif (defined __x86_64__ || defined _AMD64_) && defined TCC_TARGET_X86_64
+ #  define TCC_IS_NATIVE
+ # elif defined __arm__ && defined TCC_TARGET_ARM
+ #  define TCC_IS_NATIVE
+ # endif
+ #endif
+ 
++#ifdef TCC_IS_NATIVE
++#  include <signal.h>
++#  ifndef _WIN32
++#    include <sys/ucontext.h>
++#    include <sys/mman.h>
++#  endif
++#endif
++
+ #if defined TCC_IS_NATIVE && !defined CONFIG_TCCBOOT
+ # define CONFIG_TCC_BACKTRACE
+ #endif
+ 
+ /* ------------ path configuration ------------ */
+ 
+ #ifndef CONFIG_SYSROOT
  # define CONFIG_SYSROOT ""
  #endif
  #ifndef CONFIG_TCCDIR
