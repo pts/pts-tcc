@@ -162,14 +162,12 @@ done >tcc-0.9.26/libcdata.s
 (cd tcc-0.9.26 && ../dl/ld -nostdlib -m elf_i386 -static -o ../pts-tcc.uncompressed -s "$UCLIBC_CLDDIR"/crt1.o "$UCLIBC_CLDDIR"/crti.o "$UCLIBC_CLDDIR"/crtbeginT.o -L"$UCLIBC_CLDDIR" -L"$UCLIBC_LIBDIR" tcc.o libtcc.o tccelf.o tccgen.o tccpp.o i386-gen.o tccrun.o tccasm.o i386-asm.o libcdata.o -lm --start-group -lgcc -lc --end-group "$UCLIBC_CLDDIR"/crtend.o "$UCLIBC_CLDDIR"/crtn.o) || die "ld failed"
 
 ls -l pts-tcc.uncompressed
-rm -f pts-tcc
-rm -f pts-tcc.ubr
 # upx --lzma: 312548 bytes
 # upx --ultra-brute --lzma: 313420 bytes
 # upx --ultra-brute --no-lzma: 350180 bytes
 # LZMA decompression is slower, but it saves many bytes, so we use it.
-dl/upx --lzma -o pts-tcc pts-tcc.uncompressed
-dl/upx --ultra-brute --no-lzma -o pts-tcc.ubr pts-tcc.uncompressed
+dl/upx --lzma -q -q -f -o pts-tcc pts-tcc.uncompressed
+dl/upx --ultra-brute --no-lzma -q -q -f -o pts-tcc.ubr pts-tcc.uncompressed
 # elfosfix.pl, needed only for pts-tcc.uncompressed.
 # Change ELF executable system type from SYSV to GNU/Linux.
 dl/perl -0777 -pi -e 'die if !s@\A(\177ELF...)[\0\3]@$1\003@s' pts-tcc pts-tcc.uncompressed
