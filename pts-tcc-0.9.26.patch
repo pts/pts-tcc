@@ -650,8 +650,8 @@
  
      /* number */
 --- orig/tcc-0.9.26/tcc.h	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.h	2023-06-24 10:42:15.270067525 +0200
-@@ -28,30 +28,37 @@
++++ tcc-0.9.26/tcc.h	2023-06-25 00:51:13.101612562 +0200
+@@ -28,30 +28,35 @@
  #include "tccboot.h"
  #define CONFIG_TCC_STATIC
  #else
@@ -673,8 +673,6 @@
 +long long int strtoll(const char *nptr, char **endptr, int base);
 +float strtof (const char *__nptr, char **__endptr);
 +long double strtold (const char *__nptr, char **__endptr);
-+
-+typedef unsigned uintptr_t;
 +#endif
 +
  #ifndef _WIN32
@@ -692,7 +690,7 @@
  # include <direct.h> /* getcwd */
  # ifdef __GNUC__
  #  include <stdint.h>
-@@ -129,50 +136,64 @@
+@@ -129,50 +134,64 @@
  #if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_C67)
  #define CONFIG_TCC_ASM
  #endif
