@@ -1,8 +1,14 @@
 *~
+a.out
 /gcctest.s
 /*.good
 /pts-tcc
+/pts-tcc.ubr
 /pts-tcc.uncompressed
+/pts-tcc-minid.unc
+/pts-tcc-minid.ubr
+/pts-tcc-minil.unc
+/pts-tcc-minil.ubr
 /tcc-0.9.26
 /tcclibc
 /dl
