@@ -463,8 +463,41 @@
  
      /* number */
 --- orig/tcc-0.9.26/tcc.h	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.h	2018-09-14 15:07:28.292462995 +0200
-@@ -156,23 +156,27 @@
++++ tcc-0.9.26/tcc.h	2023-06-23 17:29:32.961318892 +0200
+@@ -33,20 +33,32 @@
+ #include <stdio.h>
+ #include <stdarg.h>
+ #include <string.h>
+ #include <errno.h>
+ #include <math.h>
+ #include <signal.h>
+ #include <fcntl.h>
+ #include <setjmp.h>
+ #include <time.h>
+ 
++#ifdef __MINILIBC686__  /* TODO(pts): Remove this once minilibc gets the functionality. */
++int execvp(const char *file, char *const argv[]);
++unsigned long int strtoul(const char *nptr, char **endptr, int base);
++unsigned long long int strtoull(const char *nptr, char **endptr, int base);
++FILE *fdopen(int fd, const char *mode);
++long long int strtoll(const char *nptr, char **endptr, int base);
++float strtof (const char *__nptr, char **__endptr);
++long double strtold (const char *__nptr, char **__endptr);
++
++typedef unsigned uintptr_t;
++#endif
++
+ #ifndef _WIN32
+ # include <unistd.h>
+ # include <sys/time.h>
+ # include <sys/ucontext.h>
+ # include <sys/mman.h>
+ # ifndef CONFIG_TCC_STATIC
+ #  include <dlfcn.h>
+ # endif
+ #else
+ # include <windows.h>
+@@ -156,23 +168,27 @@
  # define CONFIG_SYSROOT ""
  #endif
  #ifndef CONFIG_TCCDIR
