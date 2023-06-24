@@ -123,7 +123,8 @@ tar xjf dl/tcc-0.9.26.tar.bz2
 : >tcc-0.9.26/config.h  # config.mak and config.texi can be left empty.
 
 # No need to specify -fno-use-linker-plugin here, gcc-7.3 needs it only for linking (thus not with gcc -c).
-CFLAGS='-DCONFIG_TCCDIR="/dev/null" -DTCC_VERSION="0.9.26-1" -DTCC_TARGET_I386 -DCONFIG_TCC_STATIC -fno-pic -fno-strict-aliasing -W -Wall -Wunused-result -Wno-pointer-sign -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-frame-address -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0'
+# -DCONFIG_TCC_CRTIN
+CFLAGS='-DCONFIG_TCCDIR="/dev/null" -DTCC_VERSION="0.9.26-1" -DTCC_VERSION10000=92600 -DTCC_TARGET_I386 -DCONFIG_TCC_STATIC -DCONFIG_TCC_DATA -DCONFIG_NO_EXEC -fno-pic -fno-strict-aliasing -W -Wall -Wunused-result -Wno-pointer-sign -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-frame-address -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0'
 
 rm -rf tcclibc
 mkdir  tcclibc

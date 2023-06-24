@@ -1,6 +1,6 @@
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/libtcc.c	2018-09-14 15:07:28.292462995 +0200
-@@ -646,20 +646,38 @@
++++ tcc-0.9.26/libtcc.c	2023-06-24 09:38:34.307766227 +0200
+@@ -646,20 +646,42 @@
          return;
  
      va_start(ap, fmt);
@@ -11,10 +11,14 @@
  /********************************************************/
  /* I/O layer */
  
-+extern char data_crt1[];
-+extern char data_crti[];
-+extern char data_crtn[];
-+extern char data_tcclibc[];
++#ifdef CONFIG_TCC_DATA  /**** pts ****/
++  extern char data_tcclibc[];
++  extern char data_crt1[];
++#  ifdef CONFIG_TCC_CRTIN
++    extern char data_crti[];
++    extern char data_crtn[];
++#  endif
++#endif
 +
 +int open_data(char *data)
 +{
@@ -39,7 +43,7 @@
      bf->buf_end = bf->buffer + initlen;
      bf->buf_end[0] = CH_EOB; /* put eob symbol */
      pstrcpy(bf->filename, sizeof(bf->filename), filename);
-@@ -683,20 +701,28 @@
+@@ -683,20 +705,32 @@
      }
      file = bf->prev;
      tcc_free(bf);
@@ -50,14 +54,18 @@
      int fd;
      if (strcmp(filename, "-") == 0)
          fd = 0, filename = "stdin";
-+    else if (strcmp(filename, "///tmp///LIBTCC1.a") == 0)  /**** pts ****/
++#ifdef CONFIG_TCC_DATA  /**** pts ****/
++    else if (strcmp(filename, "///tmp///LIBTCC1.a") == 0)
 +        fd = open_data(data_tcclibc);
-+    else if (strcmp(filename, "///tmp///crt1.o") == 0)  /**** pts ****/
++    else if (strcmp(filename, "///tmp///crt1.o") == 0)
 +        fd = open_data(data_crt1);
-+    else if (strcmp(filename, "///tmp///crti.o") == 0)  /**** pts ****/
++#ifdef CONFIG_TCC_CRTIN  /**** pts ****/
++    else if (strcmp(filename, "///tmp///crti.o") == 0)
 +        fd = open_data(data_crti);
-+    else if (strcmp(filename, "///tmp///crtn.o") == 0)  /**** pts ****/
++    else if (strcmp(filename, "///tmp///crtn.o") == 0)
 +        fd = open_data(data_crtn);
++#endif  /* CONFIG_TCC_CRTIN */
++#endif  /* CONFIG_TCC_DATA */
      else
          fd = open(filename, O_RDONLY | O_BINARY);
      if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
@@ -68,7 +76,7 @@
  
      tcc_open_bf(s1, filename, 0);
      file->fd = fd;
-@@ -899,20 +925,21 @@
+@@ -899,20 +933,21 @@
      s = tcc_mallocz(sizeof(TCCState));
      if (!s)
          return NULL;
@@ -90,7 +98,7 @@
      define_push(TOK___DATE__, MACRO_OBJ, NULL, NULL);
      define_push(TOK___TIME__, MACRO_OBJ, NULL, NULL);
  
-@@ -978,22 +1005,24 @@
+@@ -978,22 +1013,24 @@
  #ifdef TCC_TARGET_PE
      tcc_define_symbol(s, "__WCHAR_TYPE__", "unsigned short");
  #else
@@ -115,7 +123,7 @@
      /* create standard sections */
      text_section = new_section(s, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR);
      data_section = new_section(s, ".data", SHT_PROGBITS, SHF_ALLOC | SHF_WRITE);
-@@ -1145,36 +1174,36 @@
+@@ -1145,36 +1182,36 @@
      if (!strcmp(ext, "s")) {
          /* non preprocessed assembler */
          ret = tcc_assemble(s1, 0);
@@ -154,6 +162,37 @@
                  void *h;
                  h = dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
                  if (h)
+@@ -1336,26 +1373,30 @@
+         put_stabs("", 0, 0, 0, 0);
+     }
+ 
+ #ifdef TCC_TARGET_PE
+     tcc_add_library_path(s, CONFIG_TCC_LIBPATHS);
+ # ifdef _WIN32
+     tcc_add_systemdir(s);
+ # endif
+ #else
+     /* add libc crt1/crti objects */
++#  ifdef CONFIG_TCC_DATA
+     if ((output_type == TCC_OUTPUT_EXE || output_type == TCC_OUTPUT_DLL) &&
+         !s->nostdlib) {
+         if (output_type != TCC_OUTPUT_DLL)
+             tcc_add_crt(s, "crt1.o");
++#    ifdef CONFIG_TCC_CRTIN  /**** pts ****/
+         tcc_add_crt(s, "crti.o");
++#    endif
+     }
++#  endif
+ #endif
+     return 0;
+ }
+ 
+ LIBTCCAPI void tcc_set_lib_path(TCCState *s, const char *path)
+ {
+     tcc_free(s->tcc_lib_path);
+     s->tcc_lib_path = tcc_strdup(path);
+ }
+ 
 --- orig/tcc-0.9.26/tcc.c	2013-02-15 15:24:00.000000000 +0100
 +++ tcc-0.9.26/tcc.c	2018-09-14 15:07:28.292462995 +0200
 @@ -19,21 +19,21 @@
@@ -203,8 +242,8 @@
          " Win64"
  # endif
 --- orig/tcc-0.9.26/tccelf.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tccelf.c	2018-09-14 15:07:28.292462995 +0200
-@@ -1353,26 +1353,32 @@
++++ tcc-0.9.26/tccelf.c	2023-06-24 09:29:42.401674037 +0200
+@@ -1353,29 +1353,39 @@
      return tcc_add_file(s1, buf);
  }
  
@@ -219,17 +258,22 @@
          tcc_add_library(s1, "c");
 +#endif
  #ifdef CONFIG_USE_LIBGCC
-+#if 0 /**** pts ****/
++  #if 0 /**** pts ****/
          tcc_add_file(s1, TCC_LIBGCC);
- #elif !defined WITHOUT_LIBTCC
+-#elif !defined WITHOUT_LIBTCC
++  #elif !defined WITHOUT_LIBTCC
          tcc_add_support(s1, "libtcc1.a");
- #endif
++  #endif
 +#else
++  #ifdef CONFIG_TCC_DATA
 +        tcc_add_file(s1, "///tmp///LIBTCC1.a");
-+#endif
++  #endif
+ #endif
++#ifdef CONFIG_TCC_CRTIN  /**** pts ****/
          /* add crt end if not memory output */
          if (s1->output_type != TCC_OUTPUT_MEMORY)
              tcc_add_crt(s1, "crtn.o");
++#endif
      }
  }
  
@@ -237,7 +281,10 @@
     sections are filled (for example after allocating common
     symbols)) */
  ST_FUNC void tcc_add_linker_symbols(TCCState *s1)
-@@ -2333,21 +2339,21 @@
+ {
+     char buf[1024];
+     int i;
+@@ -2333,21 +2343,21 @@
      }
      return ret;
  }
@@ -260,7 +307,7 @@
      uint8_t link_once;         /* true if link once section */
  } SectionMergeInfo;
  
-@@ -2650,21 +2656,21 @@
+@@ -2650,21 +2660,21 @@
      char ar_size[10];           /* file size, printed as decimal */
      char ar_fmag[2];            /* should contain ARFMAG */
  } ArchiveHeader;
@@ -283,7 +330,7 @@
      data = tcc_malloc(size);
      if (read(fd, data, size) != size)
          goto fail;
-@@ -2672,21 +2678,21 @@
+@@ -2672,21 +2682,21 @@
      ar_index = data + 4;
      ar_names = ar_index + nsyms * 4;
  
@@ -306,7 +353,7 @@
                          ret = -1;
                          goto the_end;
                      }
-@@ -2718,33 +2724,36 @@
+@@ -2718,33 +2728,36 @@
          if (len == 0)
              break;
          if (len != sizeof(hdr)) {
