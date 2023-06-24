@@ -43,7 +43,7 @@ if ! test -f dl/tcc-0.9.26.tar.bz2; then
 fi
 
 if ! test -f dl/pts-xstatic-latest.sfx.7z; then
-  wget -nv -O dl/pts-xstatic-latest.sfx.7z.tmp http://pts.50.hu/files/pts-xstatic/pts-xstatic-latest.sfx.7z
+  wget --no-check-certificate -nv -O dl/pts-xstatic-latest.sfx.7z.tmp http://pts.50.hu/files/pts-xstatic/pts-xstatic-latest.sfx.7z
   chmod 755 dl/pts-xstatic-latest.sfx.7z.tmp
   mv dl/pts-xstatic-latest.sfx.7z.tmp dl/pts-xstatic-latest.sfx.7z
 fi
