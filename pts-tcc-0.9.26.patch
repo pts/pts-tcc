@@ -1,5 +1,5 @@
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/libtcc.c	2023-06-24 09:38:34.307766227 +0200
++++ tcc-0.9.26/libtcc.c	2023-06-24 09:40:48.071286465 +0200
 @@ -646,20 +646,42 @@
          return;
  
@@ -76,7 +76,24 @@
  
      tcc_open_bf(s1, filename, 0);
      file->fd = fd;
-@@ -899,20 +933,21 @@
+@@ -884,49 +918,57 @@
+     cstr_free(&tokcstr);
+     /* reset symbol stack */
+     sym_free_first = NULL;
+     /* cleanup from error/setjmp */
+     macro_ptr = NULL;
+ }
+ 
+ LIBTCCAPI TCCState *tcc_new(void)
+ {
+     TCCState *s;
++#ifndef TCC_VERSION10000
+     char buffer[100];
+     int a,b,c;
++#endif
+ 
+     tcc_cleanup();
+ 
      s = tcc_mallocz(sizeof(TCCState));
      if (!s)
          return NULL;
@@ -98,7 +115,26 @@
      define_push(TOK___DATE__, MACRO_OBJ, NULL, NULL);
      define_push(TOK___TIME__, MACRO_OBJ, NULL, NULL);
  
-@@ -978,22 +1013,24 @@
+     /* define __TINYC__ 92X  */
++#ifdef TCC_VERSION10000
++#define VERSIONSTR(v) #v
++    tcc_define_symbol(s, "__TINYC__", VERSIONSTR(TCC_VERSION10000));
++#else
+     sscanf(TCC_VERSION, "%d.%d.%d", &a, &b, &c);
+     sprintf(buffer, "%d", a*10000 + b*100 + c);
+     tcc_define_symbol(s, "__TINYC__", buffer);
++#endif
+ 
+     /* standard defines */
+     tcc_define_symbol(s, "__STDC__", NULL);
+     tcc_define_symbol(s, "__STDC_VERSION__", "199901L");
+ 
+     /* target defines */
+ #if defined(TCC_TARGET_I386)
+     tcc_define_symbol(s, "__i386__", NULL);
+     tcc_define_symbol(s, "__i386", NULL);
+     tcc_define_symbol(s, "i386", NULL);
+@@ -978,22 +1020,24 @@
  #ifdef TCC_TARGET_PE
      tcc_define_symbol(s, "__WCHAR_TYPE__", "unsigned short");
  #else
@@ -123,7 +159,7 @@
      /* create standard sections */
      text_section = new_section(s, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR);
      data_section = new_section(s, ".data", SHT_PROGBITS, SHF_ALLOC | SHF_WRITE);
-@@ -1145,36 +1182,36 @@
+@@ -1145,36 +1189,36 @@
      if (!strcmp(ext, "s")) {
          /* non preprocessed assembler */
          ret = tcc_assemble(s1, 0);
@@ -162,7 +198,7 @@
                  void *h;
                  h = dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
                  if (h)
-@@ -1336,26 +1373,30 @@
+@@ -1336,26 +1380,30 @@
          put_stabs("", 0, 0, 0, 0);
      }
  
