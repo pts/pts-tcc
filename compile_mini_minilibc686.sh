@@ -7,8 +7,7 @@ set -ex
     tcc-0.9.26/tcc.c tcc-0.9.26/libtcc.c tcc-0.9.26/tccelf.c tcc-0.9.26/tccgen.c tcc-0.9.26/tccpp.c tcc-0.9.26/i386-gen.c tcc-0.9.26/tccasm.c tcc-0.9.26/i386-asm.c
 # TODO(pts): Currently it doesn't link, there are undefined symbols.
 # TODO(pts): Can we replace strtof with strtod?
-# TODO(pts): TinyCC never free(...)s, so malloc_simple_align4(...) would do.
-# TODO(pts): Undefined symbols: !!malloc strtof strtold strtoll strtoul strtoull
+# TODO(pts): Undefined symbols: malloc+realloc+free strtof strtold strtoll strtoul strtoull
 ls -ld pts-tcc-minil.unc
 dl/upx --ultra-brute --no-lzma -q -q -f -o pts-tcc-minil.ubr pts-tcc-minil.unc
 ls -ld pts-tcc-minil.unc pts-tcc-minil.ubr
