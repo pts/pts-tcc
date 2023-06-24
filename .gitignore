@@ -12,3 +12,8 @@ a.out
 /tcc-0.9.26
 /tcclibc
 /dl
+# Without this /orig, `git status' ignores the more specific items below.
+/orig
+/orig/tcc-0.9.26/*.c
+/orig/tcc-0.9.26/*.h
+/orig/tcc-0.9.26/configure
