@@ -366,7 +366,57 @@
          " Win64"
  # endif
 --- orig/tcc-0.9.26/tccelf.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tccelf.c	2023-06-25 12:36:37.955623744 +0200
++++ tcc-0.9.26/tccelf.c	2023-06-25 13:47:51.407466022 +0200
+@@ -766,22 +766,22 @@
+             *(int *)ptr += s1->sym_attrs[sym_index].got_offset;
+             break;
+         case R_ARM_COPY:
+             break;
+         case R_ARM_V4BX:
+             /* trade Thumb support for ARMv4 support */
+             if ((0x0ffffff0 & *(int*)ptr) == 0x012FFF10)
+                 *(int*)ptr ^= 0xE12FFF10 ^ 0xE1A0F000; /* BX Rm -> MOV PC, Rm */
+             break;
+         default:
+-            fprintf(stderr,"FIXME: handle reloc type %x at %x [%p] to %x\n",
+-                type, (unsigned)addr, ptr, (unsigned)val);
++            fprintf(stderr,"FIXME: handle reloc type %x at %x [0x%x] to %x\n",
++                type, (unsigned)addr, (unsigned)ptr, (unsigned)val);
+             break;
+ #elif defined(TCC_TARGET_C67)
+         case R_C60_32:
+             *(int *)ptr += val;
+             break;
+         case R_C60LO16:
+             {
+                 uint32_t orig;
+                 
+                 /* put the low 16 bits of the absolute address */
+@@ -792,22 +792,22 @@
+                 
+                 //patch both at once - assumes always in pairs Low - High
+                 
+                 *(int *) ptr    = (*(int *) ptr    & (~(0xffff << 7)) ) |  (((val+orig)      & 0xffff) << 7);
+                 *(int *)(ptr+4) = (*(int *)(ptr+4) & (~(0xffff << 7)) ) | ((((val+orig)>>16) & 0xffff) << 7);
+             }
+             break;
+         case R_C60HI16:
+             break;
+         default:
+-            fprintf(stderr,"FIXME: handle reloc type %x at %x [%p] to %x\n",
+-                type, (unsigned)addr, ptr, (unsigned)val);
++            fprintf(stderr,"FIXME: handle reloc type %x at %x [0x%x] to %x\n",
++                type, (unsigned)addr, (unsigned)yptr, (unsigned)val);
+             break;
+ #elif defined(TCC_TARGET_X86_64)
+         case R_X86_64_64:
+             if (s1->output_type == TCC_OUTPUT_DLL) {
+                 qrel->r_info = ELFW(R_INFO)(0, R_X86_64_RELATIVE);
+                 qrel->r_addend = *(long long *)ptr + val;
+                 qrel++;
+             }
+             *(long long *)ptr += val;
+             break;
 @@ -1339,43 +1339,55 @@
          pinit[0] = 0xe8;
          put32(pinit + 1, -4);
@@ -597,14 +647,61 @@
              break;
          case VT_LDOUBLE:
 --- orig/tcc-0.9.26/tccpp.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tccpp.c	2018-09-14 15:11:14.756893054 +0200
-@@ -275,35 +275,37 @@
++++ tcc-0.9.26/tccpp.c	2023-06-25 13:47:48.515462155 +0200
+@@ -242,20 +242,35 @@
+         ts = *pts;
+         if (!ts)
+             break;
+         if (ts->len == len && !memcmp(ts->str, str, len))
+             return ts;
+         pts = &(ts->hash_next);
+     }
+     return tok_alloc_new(pts, str, len);
+ }
+ 
++#if defined(_WIN32) || defined(__MINILIBC686__)
++static void ull_to_decimal(unsigned long long u, char *s) {
++  char *p = s, c;
++  do {
++    *p++ = (char)('0' + (u % 10));
++  } while ((u /= 10) != 0);
++  *p-- = '\0';
++  while (p > s) {
++    c = *p;
++    *p-- = *s;
++    *s++ = c;
++  }
++}
++#endif
++
+ /* XXX: buffer overflow */
+ /* XXX: float tokens */
+ ST_FUNC char *get_tok_str(int v, CValue *cv)
+ {
+     static char buf[STRING_MAX_SIZE + 1];
+     static CString cstr_buf;
+     CString *cstr;
+     char *p;
+     int i, len;
+ 
+@@ -267,43 +282,45 @@
+ 
+     switch(v) {
+     case TOK_CINT:
+     case TOK_CUINT:
+         /* XXX: not quite exact, but only useful for testing */
+         sprintf(p, "%u", cv->ui);
+         break;
+     case TOK_CLLONG:
      case TOK_CULLONG:
          /* XXX: not quite exact, but only useful for testing  */
- #ifdef _WIN32
-         sprintf(p, "%u", (unsigned)cv->ull);
+-#ifdef _WIN32
+-        sprintf(p, "%u", (unsigned)cv->ull);
++#if defined(_WIN32) || defined(__MINILIBC686__)
++        ull_to_decimal(cv->ull, p);
  #else
-         sprintf(p, "%Lu", cv->ull);
+-        sprintf(p, "%Lu", cv->ull);
++        sprintf(p, "%llu", cv->ull);
  #endif
          break;
      case TOK_LCHAR:
@@ -636,7 +733,7 @@
          } else {
              len = (cstr->size / sizeof(nwchar_t)) - 1;
              for(i=0;i<len;i++)
-@@ -1761,20 +1763,26 @@
+@@ -1761,20 +1778,26 @@
  }
  
  static void bn_zero(unsigned int *bn)
