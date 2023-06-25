@@ -32,6 +32,7 @@ type -p perl || die "perl: command not found"
 type -p grep || die "grep: command not found"
 type -p tar || die "tar: command not found"
 type -p bzip2 || die "bzip2: command not found"
+type -p strip || die "strip: command not found"
 
 # --- Download dependencies.
 
@@ -124,15 +125,7 @@ tar xjf dl/tcc-0.9.26.tar.bz2
 : >tcc-0.9.26/config.h  # config.mak and config.texi can be left empty.
 
 # No need to specify -fno-use-linker-plugin here, gcc-7.3 needs it only for linking (thus not with gcc -c).
-# -DCONFIG_TCC_CRTIN
-CFLAGS='-DCONFIG_TCCDIR="/dev/null" -DTCC_VERSION="0.9.26-1" -DTCC_VERSION10000=92600 -DTCC_TARGET_I386 -DCONFIG_TCC_STATIC -DCONFIG_TCC_DATA -DCONFIG_NO_EXEC -fno-pic -fno-strict-aliasing -W -Wall -Wunused-result -Wno-pointer-sign -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-frame-address -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0'
-
-rm -rf tcclibc
-mkdir  tcclibc
-# These files .o would be added to libtcc1.a
-for F in libtcc1.c alloca86.S alloca86-bt.S bcheck.c; do
-  (cd tcc-0.9.26 && $GCC -static -B"$UCLIBC_CLDDIR" --sysroot="$SYSROOT" -fno-stack-protector -isystem "$UCLIBC_LIBDIR"/../include $CFLAGS -c lib/"$F" -o ../tcclibc/"${F%.*}.o" -Wno-cpp) || die 'gcc failed'
-done
+CFLAGS='-DCONFIG_TCCDIR="/dev/null" -DTCC_VERSION="0.9.26-1" -DTCC_VERSION10000=92600 -DTCC_TARGET_I386 -DCONFIG_TCC_STATIC -DCONFIG_TCC_DATA -DCONFIG_TCC_CRTIN -DCONFIG_NO_EXEC -fno-pic -fno-strict-aliasing -W -Wall -Wunused-result -Wno-pointer-sign -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-frame-address -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0'
 
 #-rw-r--r-- 1 pts eng 1233128 Nov 27  2010 libc.a
 #-rw-r--r-- 1 pts eng  214376 Nov 27  2010 libm.a
@@ -140,13 +133,48 @@ done
 #-rw-r--r-- 1 pts eng    7668 Nov 27  2010 libutil.a
 # c,m: 329484 compressed
 # c,m,crypt,util: 336732 compressed
-for F in "$UCLIBC_LIBDIR"/lib{c,m,crypt,util}.a; do
-  ls -l "$F"
-  (cd tcclibc && ../dl/ar x "$F") || die "ar x failed"
-done
+if ! test -f tcclibc/o_done; then
+  rm -rf tcclibc
+  mkdir  tcclibc
+  # These files .o would be added to libtcc1.a. We add the precompiled libc_tcc/*.o files instead.
+  # for F in libtcc1.c alloca86.S alloca86-bt.S bcheck.c; do
+  #   (cd tcc-0.9.26 && $GCC -static -B"$UCLIBC_CLDDIR" --sysroot="$SYSROOT" -fno-stack-protector -isystem "$UCLIBC_LIBDIR"/../include $CFLAGS -c lib/"$F" -o ../tcclibc/"${F%.*}.o" -Wno-cpp) || die 'gcc failed'
+  # done
+
+  for F in "$UCLIBC_LIBDIR"/lib{c,m,crypt,util}.a; do
+    ls -l "$F"
+    (cd tcclibc && ../dl/ar x "$F") || die "ar x failed"
+  done
+  cp -a libc_float_i686/*.o tcclibc/  # Overwrite code precompiled for -match=pentium3 (uClibc __CONFIG_PENTIUMIII__) with code precompied for earlier -march=i686.
+  cp -a libc_i64/*.o tcclibc/  # Parts of libtcc1.c.
+  cp -a libc_tcc/*.o tcclibc/  # libtcc1.c (parts), alloca86.S, alloca86-bt.S, bcheck.c.
+  rm -f tcclibc/libtcc1.o tcclibc/start.o
+  #
+  #strip -S -x -R .note.GNU-stack -R .comment tcclibc/*.o
+  for F in tcclibc/*.o; do
+    ALL_SECTIONS="$(objdump -hw "$F" | awk '$3~/^[0-9a-fA-F]+$/{print$2}')"
+    if test -z "$ALL_SECTIONS"; then
+      if test "$(objdump -t "$F" | grep '[*]COM[*]')"; then  # Found a common symbol.
+        strip -S -x "$F" ||:  # harmless: strip: error: the input file 'h_errno.o' has no sections
+      else
+        rm -f "$F"
+      fi
+      continue
+    fi
+    HAS_GLOBALBEG="$(objdump -t "$F" | grep '^00000000  *g  *[.]text[     ]' ||:)"
+    test "$HAS_GLOBALBEG" && HAS_GLOBALBEG=.text
+    EMPTY_SECTIONS="$(objdump -hw "$F" | busybox awk '$3~/^0+$/&&$2!='"\"$HAS_GLOBALBEG\""'{print"-R "$2}')"
+    strip -S -x -R .note.GNU-stack -R .comment -R .eh_frame $EMPTY_SECTIONS "$F"
+    ALL_SECTIONS="$(objdump -hw "$F" | awk '$3~/^[0-9a-fA-F]+$/{print$2}')"
+    if test -z "$ALL_SECTIONS" && test -z "$(objdump -t "$F" | grep '[*]COM[*]')" && test -z "$HAS_GLOBALBEG"; then
+      rm -f "$F"
+    fi
+  done
+  : >>tcclibc/o_done
+fi
 rm -rf tcc-0.9.26/libcdata
 mkdir  tcc-0.9.26/libcdata
-(cd tcclibc && ../dl/ar cr ../tcc-0.9.26/libcdata/tcclibc.a *.o) || die "ar cr failed"
+(cd tcclibc && ../dl/ar crs ../tcc-0.9.26/libcdata/tcclibc.a *.o) || die "ar crs failed"
 ls -l tcc-0.9.26/libcdata/tcclibc.a
 for F in "$UCLIBC_LIBDIR"/{crt1.o,crti.o,crtn.o}; do
   cp -a "$F" tcc-0.9.26/libcdata/

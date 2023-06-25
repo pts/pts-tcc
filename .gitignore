@@ -9,6 +9,8 @@ a.out
 /pts-tcc-minid.ubr
 /pts-tcc-minil.unc
 /pts-tcc-minil.ubr
+/pts-tcc-miniutcc.ubr
+/pts-tcc-miniutcc.unc
 /tcc-0.9.26
 /tcclibc
 /dl
@@ -17,3 +19,4 @@ a.out
 /orig/tcc-0.9.26/*.c
 /orig/tcc-0.9.26/*.h
 /orig/tcc-0.9.26/configure
+/libc_float_i686.unstripped
