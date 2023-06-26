@@ -1,6 +1,8 @@
 #! /bin/sh --
 set -ex
 
+# Run this first: ./pts-tcc-0.9.26-compile.sh
+
 # --wcc generates the smallest compressed code, but its `long double' is just 64-bit.
 # --gcc=4.8 generates the smallest uncompressed code.
 # Compiles with: --gcc -gcc=clang --gcc=4.4 --tcc --pcc --wcc.

@@ -1,6 +1,8 @@
 #! /bin/sh --
 set -ex
 
+# Run this first: ./pts-tcc-0.9.26-compile.sh
+
 SYSROOT="$PWD"/dl/pts-xstatic/xstaticempty
 UCLIBC_LIBDIR="${SYSROOT%/xstaticempty}/xstaticusr/lib"
 UCLIBC_CLDDIR="${SYSROOT%/xstaticempty}/xstaticcld"

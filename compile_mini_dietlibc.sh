@@ -1,6 +1,8 @@
 #! /bin/sh --
 set -ex
 
+# Run this first: ./pts-tcc-0.9.26-compile.sh
+
 # --gcc=4.4 doesn't have -Wno-unused-result
 # --gcc=4.8 doesn't need -Wno-shift-negative-value (GCC 7.5.0)
 # --gcc (GCC 7.5.0) generates the smallest code.
