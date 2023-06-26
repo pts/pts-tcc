@@ -925,8 +925,8 @@
  
      /* number */
 --- orig/tcc-0.9.26/tcc.h	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.h	2023-06-25 00:51:13.101612562 +0200
-@@ -28,30 +28,35 @@
++++ tcc-0.9.26/tcc.h	2023-06-26 03:28:57.422540523 +0200
+@@ -28,30 +28,27 @@
  #include "tccboot.h"
  #define CONFIG_TCC_STATIC
  #else
@@ -942,14 +942,6 @@
  #include <setjmp.h>
  #include <time.h>
  
-+#ifdef __MINILIBC686__  /* TODO(pts): Remove this once minilibc gets the functionality. */
-+unsigned long int strtoul(const char *nptr, char **endptr, int base);
-+unsigned long long int strtoull(const char *nptr, char **endptr, int base);
-+long long int strtoll(const char *nptr, char **endptr, int base);
-+float strtof (const char *__nptr, char **__endptr);
-+long double strtold (const char *__nptr, char **__endptr);
-+#endif
-+
  #ifndef _WIN32
  # include <unistd.h>
  # include <sys/time.h>
@@ -965,7 +957,7 @@
  # include <direct.h> /* getcwd */
  # ifdef __GNUC__
  #  include <stdint.h>
-@@ -129,50 +134,64 @@
+@@ -129,50 +126,64 @@
  #if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_C67)
  #define CONFIG_TCC_ASM
  #endif
