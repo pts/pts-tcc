@@ -1,6 +1,170 @@
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/libtcc.c	2023-06-24 10:01:36.122811748 +0200
-@@ -646,20 +646,42 @@
++++ tcc-0.9.26/libtcc.c	2023-06-26 00:14:14.883441821 +0200
+@@ -200,34 +200,40 @@
+ ST_DATA int mem_cur_size;
+ ST_DATA int mem_max_size;
+ unsigned malloc_usable_size(void*);
+ #endif
+ 
+ PUB_FUNC void tcc_free(void *ptr)
+ {
+ #ifdef MEM_DEBUG
+     mem_cur_size -= malloc_usable_size(ptr);
+ #endif
++#ifdef CONFIG_MALLOC_VERBOSE
++    fprintf(stderr, "MV FREE(%p)\n", ptr);
++#endif
+     free(ptr);
+ }
+ 
+ PUB_FUNC void *tcc_malloc(unsigned long size)
+ {
+     void *ptr;
+     ptr = malloc(size);
+     if (!ptr && size)
+         tcc_error("memory full");
+ #ifdef MEM_DEBUG
+     mem_cur_size += malloc_usable_size(ptr);
+     if (mem_cur_size > mem_max_size)
+         mem_max_size = mem_cur_size;
+ #endif
++#ifdef CONFIG_MALLOC_VERBOSE
++    fprintf(stderr, "MV MALLOC(%lu) = %p\n", (unsigned long)size, ptr);
++#endif
+     return ptr;
+ }
+ 
+ PUB_FUNC void *tcc_mallocz(unsigned long size)
+ {
+     void *ptr;
+     ptr = tcc_malloc(size);
+     memset(ptr, 0, size);
+     return ptr;
+ }
+@@ -240,40 +246,46 @@
+ #endif
+     ptr1 = realloc(ptr, size);
+     if (!ptr1 && size)
+         tcc_error("memory full");
+ #ifdef MEM_DEBUG
+     /* NOTE: count not correct if alloc error, but not critical */
+     mem_cur_size += malloc_usable_size(ptr1);
+     if (mem_cur_size > mem_max_size)
+         mem_max_size = mem_cur_size;
+ #endif
++#ifdef CONFIG_MALLOC_VERBOSE
++    fprintf(stderr, "MV REALLOC(%p, %lu) = %p\n", ptr, (unsigned long)size, ptr1);
++#endif
+     return ptr1;
+ }
+ 
+ PUB_FUNC char *tcc_strdup(const char *str)
+ {
+     char *ptr;
+     ptr = tcc_malloc(strlen(str) + 1);
+     strcpy(ptr, str);
+     return ptr;
+ }
+ 
+ PUB_FUNC void tcc_memstats(void)
+ {
+ #ifdef MEM_DEBUG
+     printf("memory: %d bytes, max = %d bytes\n", mem_cur_size, mem_max_size);
+ #endif
+ }
+ 
++#undef free
+ #define free(p) use_tcc_free(p)
++#undef malloc
+ #define malloc(s) use_tcc_malloc(s)
++#undef realloc
+ #define realloc(p, s) use_tcc_realloc(p, s)
+ 
+ /********************************************************/
+ /* dynarrays */
+ 
+ ST_FUNC void dynarray_add(void ***ptab, int *nb_ptr, void *data)
+ {
+     int nb, nb_alloc;
+     void **pp;
+     
+@@ -561,21 +573,21 @@
+     va_list ap;
+     va_start(ap, fmt);
+     strcat_vprintf(buf, buf_size, fmt, ap);
+     va_end(ap);
+ }
+ 
+ static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
+ {
+     char buf[2048];
+     BufferedFile **pf, *f;
+-    
++
+     buf[0] = '\0';
+     /* use upper file if inline ":asm:" or token ":paste:" */
+     for (f = file; f && f->filename[0] == ':'; f = f->prev);
+     if (f) {
+         for(pf = s1->include_stack; pf < s1->include_stack_ptr; pf++)
+             strcat_printf(buf, sizeof(buf), "In file included from %s:%d:\n",
+                 (*pf)->filename, (*pf)->line_num);
+         if (f->line_num > 0) {
+             strcat_printf(buf, sizeof(buf), "%s:%d: ",
+                 f->filename, f->line_num);
+@@ -585,27 +597,27 @@
+         }
+     } else {
+         strcat_printf(buf, sizeof(buf), "tcc: ");
+     }
+     if (is_warning)
+         strcat_printf(buf, sizeof(buf), "warning: ");
+     else
+         strcat_printf(buf, sizeof(buf), "error: ");
+     strcat_vprintf(buf, sizeof(buf), fmt, ap);
+ 
+-    if (!s1->error_func) {
++    if (!s1 || !s1->error_func) {
+         /* default case: stderr */
+         fprintf(stderr, "%s\n", buf);
+     } else {
+         s1->error_func(s1->error_opaque, buf);
+     }
+-    if (!is_warning || s1->warn_error)
++    if (s1 && (!is_warning || s1->warn_error))
+         s1->nb_errors++;
+ }
+ 
+ LIBTCCAPI void tcc_set_error_func(TCCState *s, void *error_opaque,
+                         void (*error_func)(void *opaque, const char *msg))
+ {
+     s->error_opaque = error_opaque;
+     s->error_func = error_func;
+ }
+ 
+@@ -622,21 +634,21 @@
+ 
+ PUB_FUNC void tcc_error(const char *fmt, ...)
+ {
+     TCCState *s1 = tcc_state;
+     va_list ap;
+ 
+     va_start(ap, fmt);
+     error1(s1, 0, fmt, ap);
+     va_end(ap);
+     /* better than nothing: in some cases, we accept to handle errors */
+-    if (s1->error_set_jmp_enabled) {
++    if (s1 && s1->error_set_jmp_enabled) {
+         longjmp(s1->error_jmp_buf, 1);
+     } else {
+         /* XXX: eliminate this someday */
+         exit(1);
+     }
+ }
+ 
+ PUB_FUNC void tcc_warning(const char *fmt, ...)
+ {
+     TCCState *s1 = tcc_state;
+@@ -646,20 +658,42 @@
          return;
  
      va_start(ap, fmt);
@@ -43,7 +207,7 @@
      bf->buf_end = bf->buffer + initlen;
      bf->buf_end[0] = CH_EOB; /* put eob symbol */
      pstrcpy(bf->filename, sizeof(bf->filename), filename);
-@@ -683,20 +705,32 @@
+@@ -683,20 +717,32 @@
      }
      file = bf->prev;
      tcc_free(bf);
@@ -76,7 +240,7 @@
  
      tcc_open_bf(s1, filename, 0);
      file->fd = fd;
-@@ -884,49 +918,57 @@
+@@ -884,49 +930,57 @@
      cstr_free(&tokcstr);
      /* reset symbol stack */
      sym_free_first = NULL;
@@ -134,7 +298,7 @@
      tcc_define_symbol(s, "__i386__", NULL);
      tcc_define_symbol(s, "__i386", NULL);
      tcc_define_symbol(s, "i386", NULL);
-@@ -978,22 +1020,24 @@
+@@ -978,22 +1032,24 @@
  #ifdef TCC_TARGET_PE
      tcc_define_symbol(s, "__WCHAR_TYPE__", "unsigned short");
  #else
@@ -159,7 +323,7 @@
      /* create standard sections */
      text_section = new_section(s, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR);
      data_section = new_section(s, ".data", SHT_PROGBITS, SHF_ALLOC | SHF_WRITE);
-@@ -1036,25 +1080,27 @@
+@@ -1036,25 +1092,27 @@
      /* free all sections */
      for(i = 1; i < s1->nb_sections; i++)
          free_section(s1->sections[i]);
@@ -187,7 +351,7 @@
  
      /* free include paths */
      dynarray_reset(&s1->cached_includes, &s1->nb_cached_includes);
-@@ -1145,36 +1191,36 @@
+@@ -1145,36 +1203,36 @@
      if (!strcmp(ext, "s")) {
          /* non preprocessed assembler */
          ret = tcc_assemble(s1, 0);
@@ -226,7 +390,7 @@
                  void *h;
                  h = dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
                  if (h)
-@@ -1336,26 +1382,30 @@
+@@ -1336,26 +1394,30 @@
          put_stabs("", 0, 0, 0, 0);
      }
  
