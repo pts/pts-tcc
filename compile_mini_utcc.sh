@@ -35,7 +35,7 @@ done
 # --gcc=4.8 generates the smallest code when compressed.
 # Compiles cleanly with: --gcc -gcc=clang --gcc=4.8 --gcc=4.4 --tcc --pcc.
 ../pathbin/minicc --gcc=4.8 -nostdinc -nostdlib -I"$UCLIBC_LIBDIR"/../include -Icc_include \
-    -DCONFIG_TCCDIR='"/dev/null"' -DTCC_VERSION='"0.9.26-1"' -DTCC_VERSION10000=926 -DTCC_TARGET_I386 -DCONFIG_TCC_STATIC -DCONFIG_TCC_DATA -DCONFIG_NO_RUN -DCONFIG_NO_EXEC -fno-strict-aliasing \
+    -DCONFIG_TCCDIR='"/dev/null"' -DTCC_VERSION='"0.9.26-2"' -DTCC_VERSION10000=926 -DTCC_TARGET_I386 -DCONFIG_TCC_STATIC -DCONFIG_TCC_DATA -DCONFIG_NO_RUN -DCONFIG_NO_EXEC -fno-strict-aliasing \
     -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers -Wno-pointer-sign -Wno-unused-result -Wno-shift-negative-value \
     -o pts-tcc-miniutcc.unc \
     tcc-0.9.26/tcc.c tcc-0.9.26/libtcc.c tcc-0.9.26/tccelf.c tcc-0.9.26/tccgen.c tcc-0.9.26/tccpp.c tcc-0.9.26/i386-gen.c tcc-0.9.26/tccasm.c tcc-0.9.26/i386-asm.c tcc-0.9.26/libcdata_utcc.o \
