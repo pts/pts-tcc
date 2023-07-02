@@ -473,7 +473,7 @@
  }
  
 --- orig/tcc-0.9.26/tcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.c	2023-06-24 10:47:57.576840425 +0200
++++ tcc-0.9.26/tcc.c	2023-07-02 13:26:13.166123575 +0200
 @@ -19,21 +19,21 @@
   */
  
@@ -580,6 +580,31 @@
  # ifdef TCC_TARGET_PE
          " Win64"
  # endif
+@@ -313,20 +331,24 @@
+             }
+         } else {
+             if (1 == s->verbose)
+                 printf("-> %s\n", filename);
+             if (tcc_add_file(s, filename) < 0)
+                 ret = 1;
+             if (!first_file)
+                 first_file = filename;
+         }
+     }
++    /* Fail and don't the write output file if there were errors.
++     * Example: tcc_error_noabort(...) errors, such as `... defined twice'.
++     */
++    if (!ret && tcc_state->nb_errors) ++ret;
+ 
+     if (0 == ret) {
+         if (bench)
+             tcc_print_stats(s, getclock_us() - start_time);
+ 
+         if (s->output_type == TCC_OUTPUT_MEMORY) {
+ #ifdef TCC_IS_NATIVE
+             ret = tcc_run(s, argc - 1 - optind, argv + 1 + optind);
+ #else
+             tcc_error_noabort("-run is not available in a cross compiler");
 --- orig/tcc-0.9.26/tccelf.c	2013-02-15 15:24:00.000000000 +0100
 +++ tcc-0.9.26/tccelf.c	2023-06-25 13:47:51.407466022 +0200
 @@ -766,22 +766,22 @@
