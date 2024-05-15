@@ -50,7 +50,7 @@
          oad(0xb8, 0); /* lbound section pointer */
          oad(0xb8, 0); /* call to function */
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/libtcc.c	2024-05-15 16:23:01.081888620 +0200
++++ tcc-0.9.26/libtcc.c	2024-05-15 17:39:47.708158002 +0200
 @@ -200,34 +200,40 @@
  ST_DATA int mem_cur_size;
  ST_DATA int mem_max_size;
@@ -269,7 +269,7 @@
  ST_FUNC int tcc_open(TCCState *s1, const char *filename)
  {
      int fd;
-+#ifdef __MINILIBC686__
++#if defined(__MINILIBC686__) && !defined(HAVE_SMART_PRINTF)
 +    unsigned count;
 +#endif
      if (strcmp(filename, "-") == 0)
@@ -290,7 +290,7 @@
          fd = open(filename, O_RDONLY | O_BINARY);
 -    if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
 +    if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3) {
-+#ifdef __MINILIBC686__
++#if defined(__MINILIBC686__) && !defined(HAVE_SMART_PRINTF)
 +        printf("%s ", fd < 0 ? "nf":"->");
 +        for (count = (unsigned)(s1->include_stack_ptr - s1->include_stack); count != 0; --count) {
 +          fputc(' ', stdout);
@@ -907,7 +907,7 @@
              break;
          case VT_LDOUBLE:
 --- orig/tcc-0.9.26/tccpp.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tccpp.c	2023-06-25 13:47:48.515462155 +0200
++++ tcc-0.9.26/tccpp.c	2024-05-15 17:40:45.048656436 +0200
 @@ -242,20 +242,35 @@
          ts = *pts;
          if (!ts)
@@ -919,7 +919,7 @@
      return tok_alloc_new(pts, str, len);
  }
  
-+#if defined(_WIN32) || defined(__MINILIBC686__)
++#if (defined(_WIN32) || defined(__MINILIBC686__)) && !defined(HAVE_SMART_PRINTF)
 +static void ull_to_decimal(unsigned long long u, char *s) {
 +  char *p = s, c;
 +  do {
@@ -957,7 +957,7 @@
          /* XXX: not quite exact, but only useful for testing  */
 -#ifdef _WIN32
 -        sprintf(p, "%u", (unsigned)cv->ull);
-+#if defined(_WIN32) || defined(__MINILIBC686__)
++#if (defined(_WIN32) || defined(__MINILIBC686__)) && !defined(HAVE_SMART_PRINTF)
 +        ull_to_decimal(cv->ull, p);
  #else
 -        sprintf(p, "%Lu", cv->ull);
