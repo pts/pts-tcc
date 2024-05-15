@@ -1,5 +1,6 @@
 #! /bin/sh --
 set -ex
+test "${0%/*}" = "$0" || cd "${0%/*}"
 
 # Run this first: ./pts-tcc-0.9.26-compile.sh
 
