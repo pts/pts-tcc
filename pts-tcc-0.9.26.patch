@@ -50,7 +50,7 @@
          oad(0xb8, 0); /* lbound section pointer */
          oad(0xb8, 0); /* call to function */
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
++++ tcc-0.9.26/libtcc.c	2024-05-15 16:23:01.081888620 +0200
 @@ -200,34 +200,40 @@
  ST_DATA int mem_cur_size;
  ST_DATA int mem_max_size;
@@ -233,7 +233,6 @@
 +    extern char data_crti[];
 +    extern char data_crtn[];
 +#  endif
-+#endif
 +
 +int open_data(char *data)
 +{
@@ -247,6 +246,7 @@
 +        return fd;
 +    }
 +}
++#endif
 +
  ST_FUNC void tcc_open_bf(TCCState *s1, const char *filename, int initlen)
  {
@@ -258,7 +258,9 @@
      bf->buf_end = bf->buffer + initlen;
      bf->buf_end[0] = CH_EOB; /* put eob symbol */
      pstrcpy(bf->filename, sizeof(bf->filename), filename);
-@@ -683,20 +717,32 @@
+@@ -681,27 +715,51 @@
+         close(bf->fd);
+         total_lines += bf->line_num;
      }
      file = bf->prev;
      tcc_free(bf);
@@ -267,6 +269,9 @@
  ST_FUNC int tcc_open(TCCState *s1, const char *filename)
  {
      int fd;
++#ifdef __MINILIBC686__
++    unsigned count;
++#endif
      if (strcmp(filename, "-") == 0)
          fd = 0, filename = "stdin";
 +#ifdef CONFIG_TCC_DATA  /**** pts ****/
@@ -283,15 +288,30 @@
 +#endif  /* CONFIG_TCC_DATA */
      else
          fd = open(filename, O_RDONLY | O_BINARY);
-     if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
+-    if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
++    if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3) {
++#ifdef __MINILIBC686__
++        printf("%s ", fd < 0 ? "nf":"->");
++        for (count = (unsigned)(s1->include_stack_ptr - s1->include_stack); count != 0; --count) {
++          fputc(' ', stdout);
++        }
++        printf("%s\n", filename);
++#else
          printf("%s %*s%s\n", fd < 0 ? "nf":"->",
                 (int)(s1->include_stack_ptr - s1->include_stack), "", filename);
++#endif
++    }
      if (fd < 0)
          return -1;
  
      tcc_open_bf(s1, filename, 0);
      file->fd = fd;
-@@ -884,49 +930,57 @@
+     return fd;
+ }
+ 
+ /* compile the C file opened in 'file'. Return non zero if errors. */
+ static int tcc_compile(TCCState *s1)
+@@ -884,49 +942,57 @@
      cstr_free(&tokcstr);
      /* reset symbol stack */
      sym_free_first = NULL;
@@ -349,7 +369,7 @@
      tcc_define_symbol(s, "__i386__", NULL);
      tcc_define_symbol(s, "__i386", NULL);
      tcc_define_symbol(s, "i386", NULL);
-@@ -978,22 +1032,24 @@
+@@ -978,22 +1044,24 @@
  #ifdef TCC_TARGET_PE
      tcc_define_symbol(s, "__WCHAR_TYPE__", "unsigned short");
  #else
@@ -374,7 +394,7 @@
      /* create standard sections */
      text_section = new_section(s, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR);
      data_section = new_section(s, ".data", SHT_PROGBITS, SHF_ALLOC | SHF_WRITE);
-@@ -1036,25 +1092,27 @@
+@@ -1036,25 +1104,27 @@
      /* free all sections */
      for(i = 1; i < s1->nb_sections; i++)
          free_section(s1->sections[i]);
@@ -402,7 +422,7 @@
  
      /* free include paths */
      dynarray_reset(&s1->cached_includes, &s1->nb_cached_includes);
-@@ -1145,36 +1203,36 @@
+@@ -1145,36 +1215,36 @@
      if (!strcmp(ext, "s")) {
          /* non preprocessed assembler */
          ret = tcc_assemble(s1, 0);
@@ -441,7 +461,7 @@
                  void *h;
                  h = dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
                  if (h)
-@@ -1336,26 +1394,30 @@
+@@ -1336,26 +1406,30 @@
          put_stabs("", 0, 0, 0, 0);
      }
  
