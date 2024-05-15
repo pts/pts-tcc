@@ -12,7 +12,7 @@
 #
 # To create the patch, run any of:
 #   for F in tcc-0.9.26/{*.c,*.h,configure}; do test "$F" = tcc-0.9.26/config.h && continue; diff -u -U10 orig/"$F" "$F"; done >pts-tcc-0.9.26.patch
-#   for F in tcc-0.9.26/{tcc.c,tccelf.c,tccgen.c,tccpp.c,tcc.h,configure}; do diff -u -U10 orig/"$F" "$F"; done >pts-tcc-0.9.26.patch
+#   for F in tcc-0.9.26/{i386-gen.c,libtcc.c,tcc.c,tccelf.c,tccgen.c,tccpp.c,tcc.h,configure}; do diff -u -U10 orig/"$F" "$F"; done >pts-tcc-0.9.26.patch
 #
 # TODO: Don't use the `xstatic' binary, invoke `gcc', `gcc -E', `as' and `ld' manually from the xstatic dir.
 # TODO: Use a smaller `ar' executable. (Where is it?)
