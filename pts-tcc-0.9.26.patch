@@ -1,5 +1,5 @@
 --- orig/tcc-0.9.26/i386-gen.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/i386-gen.c	2023-06-28 11:53:53.244200179 +0200
++++ tcc-0.9.26/i386-gen.c	2024-05-20 12:37:17.995717218 +0200
 @@ -437,24 +437,22 @@
          for(i = 0;i < fastcall_nb_regs; i++) {
              if (args_size <= 0)
@@ -49,6 +49,41 @@
      if (tcc_state->do_bounds_check) {
          oad(0xb8, 0); /* lbound section pointer */
          oad(0xb8, 0); /* call to function */
+@@ -1005,22 +1005,32 @@
+         } else {
+             o(0x04c483); /* add $4, %esp */
+         }
+     }
+     vtop->r = r;
+ }
+ 
+ /* convert from one floating point type to another */
+ ST_FUNC void gen_cvt_ftof(int t)
+ {
+-    /* all we have to do on i386 is to put the float in a register */
+-    gv(RC_FLOAT);
++    gv(RC_FLOAT);  /* put the float to an st(...) register. */
++    if (t == VT_FLOAT) {
++      o(0x50);  /* push eax */  /* Make room for 4 bytes on stack. */
++      o(0x241cd9);  /* fstp dword [esp] */
++      o(0x2404d9);  /* fld dword [esp] */
++      o(0x04c483);  /* add esp, byte 4 */
++    } else if (t == VT_DOUBLE) {
++      o(0x5050);  /* push eax ++ push eax */  /* Make room for 8 bytes on stack. */
++      o(0x241cdd);  /* fstp qword [esp] */
++      o(0x2404dd);  /* fld qword [esp] */
++      o(0x08c483);  /* add esp, byte 8 */
++    }
+ }
+ 
+ /* computed goto support */
+ ST_FUNC void ggoto(void)
+ {
+     gcall_or_jmp(1);
+     vtop--;
+ }
+ 
+ /* bound check support functions */
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
 +++ tcc-0.9.26/libtcc.c	2024-05-15 17:39:47.708158002 +0200
 @@ -200,34 +200,40 @@
