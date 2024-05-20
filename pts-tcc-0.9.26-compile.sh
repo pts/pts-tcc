@@ -189,7 +189,8 @@ done >tcc-0.9.26/libcdata.s
 
 (cd tcc-0.9.26 && $GCC -static -B"$UCLIBC_CLDDIR" --sysroot="$SYSROOT" -fno-stack-protector -isystem "$UCLIBC_LIBDIR"/../include $CFLAGS -c tcc.c libtcc.c tccelf.c tccgen.c tccpp.c i386-gen.c tccrun.c tccasm.c i386-asm.c libcdata.s -O2 -mpreferred-stack-boundary=2 -falign-functions=0) || die "gcc failed"
 #(cd tcc-0.9.26 && $GCC -o ../pts-tcc.uncompressed  tcc.o libtcc.o tccelf.o tccgen.o tccpp.o i386-gen.o tccrun.o tccasm.o i386-asm.o libcdata.o -s -lm -v) || die "gcc linking failed"
-(cd tcc-0.9.26 && ../dl/ld -nostdlib -m elf_i386 -static -o ../pts-tcc.uncompressed -s "$UCLIBC_CLDDIR"/crt1.o "$UCLIBC_CLDDIR"/crti.o "$UCLIBC_CLDDIR"/crtbeginT.o -L"$UCLIBC_CLDDIR" -L"$UCLIBC_LIBDIR" tcc.o libtcc.o tccelf.o tccgen.o tccpp.o i386-gen.o tccrun.o tccasm.o i386-asm.o libcdata.o -lm --start-group -lgcc -lc --end-group "$UCLIBC_CLDDIR"/crtend.o "$UCLIBC_CLDDIR"/crtn.o) || die "ld failed"
+# nasm-0.98.39 -O999999999 -w+orphan-labels -f elf -Dmini_strtold=good_strtold -D__UCLIBC__ -o pts-tcc/good_strtold.o src/strtold.nasm && strip -S -x -R '.gnu.warning.*' -R .note.GNU-stack -R .comment -R .eh_frame pts-tcc/good_strtold.o
+(cd tcc-0.9.26 && ../dl/ld -nostdlib -m elf_i386 -static -o ../pts-tcc.uncompressed -s "$UCLIBC_CLDDIR"/crt1.o "$UCLIBC_CLDDIR"/crti.o "$UCLIBC_CLDDIR"/crtbeginT.o -L"$UCLIBC_CLDDIR" -L"$UCLIBC_LIBDIR" tcc.o libtcc.o tccelf.o tccgen.o tccpp.o i386-gen.o tccrun.o tccasm.o i386-asm.o ../good_strtold.o libcdata.o -lm --start-group -lgcc -lc --end-group "$UCLIBC_CLDDIR"/crtend.o "$UCLIBC_CLDDIR"/crtn.o) || die "ld failed"
 
 ls -l pts-tcc.uncompressed
 # upx --lzma: 312548 bytes

@@ -942,7 +942,7 @@
              break;
          case VT_LDOUBLE:
 --- orig/tcc-0.9.26/tccpp.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tccpp.c	2024-05-15 17:40:45.048656436 +0200
++++ tcc-0.9.26/tccpp.c	2024-05-20 13:29:42.379551173 +0200
 @@ -242,20 +242,35 @@
          ts = *pts;
          if (!ts)
@@ -1055,8 +1055,45 @@
      double d;
  
      /* number */
+@@ -1944,33 +1967,28 @@
+                     *q++ = ch;
+                     ch = *p++;
+                 }
+             }
+             *q = '\0';
+             t = toup(ch);
+             errno = 0;
+             if (t == 'F') {
+                 ch = *p++;
+                 tok = TOK_CFLOAT;
+-                tokc.f = strtof(token_buf, NULL);
++                tokc.f = (float)good_strtold(token_buf, NULL);
+             } else if (t == 'L') {
+                 ch = *p++;
+-#ifdef TCC_TARGET_PE
+-                tok = TOK_CDOUBLE;
+-                tokc.d = strtod(token_buf, NULL);
+-#else
+                 tok = TOK_CLDOUBLE;
+-                tokc.ld = strtold(token_buf, NULL);
+-#endif
++                tokc.ld = good_strtold(token_buf, NULL);
+             } else {
+                 tok = TOK_CDOUBLE;
+-                tokc.d = strtod(token_buf, NULL);
++                tokc.d = (double)good_strtold(token_buf, NULL);
+             }
+         }
+     } else {
+         unsigned long long n, n1;
+         int lcount, ucount;
+ 
+         /* integer number */
+         *q = '\0';
+         q = token_buf;
+         if (b == 10 && *q == '0') {
 --- orig/tcc-0.9.26/tcc.h	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.h	2023-06-26 03:28:57.422540523 +0200
++++ tcc-0.9.26/tcc.h	2024-05-20 13:31:12.451775609 +0200
 @@ -28,30 +28,27 @@
  #include "tccboot.h"
  #define CONFIG_TCC_STATIC
@@ -1154,6 +1191,38 @@
  # elif defined CONFIG_MULTIARCHDIR
  #  define CONFIG_TCC_SYSINCLUDEPATHS \
          CONFIG_SYSROOT "/usr/local/include" \
+@@ -902,30 +913,26 @@
+ #include "tcctok.h"
+ #undef DEF
+ };
+ 
+ #define TOK_UIDENT TOK_DEFINE
+ 
+ #ifdef _WIN32
+ #define snprintf _snprintf
+ #define vsnprintf _vsnprintf
+ #ifndef __GNUC__
+-  #define strtold (long double)strtod
+-  #define strtof (float)strtod
+   #define strtoll _strtoi64
+   #define strtoull _strtoui64
+ #endif
+ #else
+-/* XXX: need to define this to use them in non ISOC99 context */
+-extern float strtof (const char *__nptr, char **__endptr);
+-extern long double strtold (const char *__nptr, char **__endptr);
+ #endif
++extern long double good_strtold(const char *__nptr, char **__endptr);
+ 
+ #ifdef _WIN32
+ #define IS_DIRSEP(c) (c == '/' || c == '\\')
+ #define IS_ABSPATH(p) (IS_DIRSEP(p[0]) || (p[0] && p[1] == ':' && IS_DIRSEP(p[2])))
+ #define PATHCMP stricmp
+ #else
+ #define IS_DIRSEP(c) (c == '/')
+ #define IS_ABSPATH(p) IS_DIRSEP(p[0])
+ #define PATHCMP strcmp
+ #endif
 --- orig/tcc-0.9.26/configure	2013-02-15 15:24:00.000000000 +0100
 +++ tcc-0.9.26/configure	2018-09-14 15:07:28.292462995 +0200
 @@ -39,21 +39,21 @@
