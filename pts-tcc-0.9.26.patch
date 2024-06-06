@@ -1289,7 +1289,7 @@
          q = token_buf;
          if (b == 10 && *q == '0') {
 --- orig/tcc-0.9.26/tcc.h	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.h	2024-06-06 04:15:41.611007868 +0200
++++ tcc-0.9.26/tcc.h	2024-06-06 04:27:56.814970707 +0200
 @@ -28,30 +28,27 @@
  #include "tccboot.h"
  #define CONFIG_TCC_STATIC
@@ -1321,7 +1321,23 @@
  # include <direct.h> /* getcwd */
  # ifdef __GNUC__
  #  include <stdint.h>
-@@ -129,50 +126,64 @@
+@@ -114,65 +111,80 @@
+ //#define TCC_TARGET_C67    /* TMS320C67xx code generator */
+ //#define TCC_TARGET_X86_64 /* x86-64 code generator */
+ 
+ /* default target is I386 */
+ #if !defined(TCC_TARGET_I386) && !defined(TCC_TARGET_ARM) && \
+     !defined(TCC_TARGET_C67) && !defined(TCC_TARGET_X86_64)
+ #define TCC_TARGET_I386
+ #endif
+ 
+ #if !defined(TCC_UCLIBC) && !defined(TCC_TARGET_ARM) && \
++    !defined(CONFIG_TCC_NO_BCHECK) && \
+     !defined(TCC_TARGET_C67) && !defined(TCC_TARGET_X86_64)
+ #define CONFIG_TCC_BCHECK /* enable bound checking code */
+ #endif
+ 
+ /* define it to include assembler support */
  #if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_C67)
  #define CONFIG_TCC_ASM
  #endif
@@ -1387,7 +1403,7 @@
  # elif defined CONFIG_MULTIARCHDIR
  #  define CONFIG_TCC_SYSINCLUDEPATHS \
          CONFIG_SYSROOT "/usr/local/include" \
-@@ -504,21 +515,23 @@
+@@ -504,21 +516,23 @@
      unsigned char plt_thumb_stub:1;
  #endif
  };
@@ -1411,7 +1427,7 @@
  
      /* output type, see TCC_OUTPUT_XXX */
      int output_type;
-@@ -902,30 +915,26 @@
+@@ -902,30 +916,26 @@
  #include "tcctok.h"
  #undef DEF
  };
