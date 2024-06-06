@@ -122,12 +122,12 @@ if ! test -f tcc-0.9.26/config.h; then
   tar xjf dl/tcc-0.9.26.tar.bz2
   (cd tcc-0.9.26 && patch -p1 <../pts-tcc-0.9.26.patch) || die "patch failed"
   # This would create: tcc-0.9.26/config.h tcc-0.9.26/config.mak tcc-0.9.26/config.texi
-  # (cd tcc-0.9.26 && noldl=yes ./configure --cc=false --extra-cflags='-DCONFIG_TCC_STATIC') || die "configure failed"
+  # (cd tcc-0.9.26 && noldl=yes ./configure --cc=false --extra-cflags='-DCONFIG_TCC_STATIC -DCONFIG_TCC_STATIC_LINK_ONLY') || die "configure failed"
   : >tcc-0.9.26/config.h  # config.mak and config.texi can be left empty.
 fi
 
 # No need to specify -fno-use-linker-plugin here, gcc-7.3 needs it only for linking (thus not with gcc -c).
-CFLAGS='-DCONFIG_TCCDIR="/dev/null" -DTCC_VERSION="0.9.26-2" -DTCC_VERSION10000=926 -DTCC_TARGET_I386 -DCONFIG_TCC_STATIC -DCONFIG_TCC_DATA -DCONFIG_TCC_CRTIN -DCONFIG_NO_EXEC -fno-pic -fno-strict-aliasing -W -Wall -Wunused-result -Wno-pointer-sign -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-frame-address -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0'
+CFLAGS='-DCONFIG_TCCDIR="/dev/null" -DTCC_VERSION="0.9.26-2" -DTCC_VERSION10000=926 -DTCC_TARGET_I386 -DCONFIG_TCC_STATIC -DCONFIG_TCC_STATIC_LINK_ONLY -DCONFIG_TCC_DATA -DCONFIG_TCC_CRTIN -DCONFIG_NO_EXEC -fno-pic -fno-strict-aliasing -W -Wall -Wunused-result -Wno-pointer-sign -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-frame-address -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0'
 
 #-rw-r--r-- 1 pts eng 1233128 Nov 27  2010 libc.a
 #-rw-r--r-- 1 pts eng  214376 Nov 27  2010 libm.a

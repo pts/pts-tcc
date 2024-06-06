@@ -85,7 +85,7 @@
  
  /* bound check support functions */
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/libtcc.c	2024-05-15 17:39:47.708158002 +0200
++++ tcc-0.9.26/libtcc.c	2024-06-06 04:17:58.272607128 +0200
 @@ -200,34 +200,40 @@
  ST_DATA int mem_cur_size;
  ST_DATA int mem_max_size;
@@ -346,7 +346,7 @@
  
  /* compile the C file opened in 'file'. Return non zero if errors. */
  static int tcc_compile(TCCState *s1)
-@@ -884,49 +942,57 @@
+@@ -884,22 +942,24 @@
      cstr_free(&tokcstr);
      /* reset symbol stack */
      sym_free_first = NULL;
@@ -371,11 +371,7 @@
  #ifdef _WIN32
      tcc_set_lib_path_w32(s);
  #else
-     tcc_set_lib_path(s, CONFIG_TCCDIR);
- #endif
-     s->output_type = TCC_OUTPUT_MEMORY;
-+    s->static_link = 1;  /**** pts ****/
-     preprocess_new();
+@@ -910,23 +970,28 @@
      s->include_stack_ptr = s->include_stack;
  
      /* we add dummy defines for some special macros to speed up tests
@@ -404,7 +400,7 @@
      tcc_define_symbol(s, "__i386__", NULL);
      tcc_define_symbol(s, "__i386", NULL);
      tcc_define_symbol(s, "i386", NULL);
-@@ -978,22 +1044,24 @@
+@@ -978,22 +1043,24 @@
  #ifdef TCC_TARGET_PE
      tcc_define_symbol(s, "__WCHAR_TYPE__", "unsigned short");
  #else
@@ -429,7 +425,7 @@
      /* create standard sections */
      text_section = new_section(s, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR);
      data_section = new_section(s, ".data", SHT_PROGBITS, SHF_ALLOC | SHF_WRITE);
-@@ -1036,25 +1104,27 @@
+@@ -1036,25 +1103,27 @@
      /* free all sections */
      for(i = 1; i < s1->nb_sections; i++)
          free_section(s1->sections[i]);
@@ -457,7 +453,7 @@
  
      /* free include paths */
      dynarray_reset(&s1->cached_includes, &s1->nb_cached_includes);
-@@ -1145,36 +1215,36 @@
+@@ -1145,36 +1214,36 @@
      if (!strcmp(ext, "s")) {
          /* non preprocessed assembler */
          ret = tcc_assemble(s1, 0);
@@ -496,7 +492,40 @@
                  void *h;
                  h = dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
                  if (h)
-@@ -1336,26 +1406,30 @@
+@@ -1258,27 +1327,32 @@
+ {
+     if (-1 == tcc_add_library_internal(s, "%s/%s",
+         filename, 0, s->crt_paths, s->nb_crt_paths))
+         tcc_error_noabort("file '%s' not found", filename);
+     return 0;
+ }
+ 
+ /* the library name is the same as the argument of the '-l' option */
+ LIBTCCAPI int tcc_add_library(TCCState *s, const char *libraryname)
+ {
++#ifdef CONFIG_TCC_STATIC_LINK_ONLY
++    const char *libs[] = { "%s/lib%s.a", NULL };
++    const char **pp = libs;
++#else
+ #ifdef TCC_TARGET_PE
+     const char *libs[] = { "%s/%s.def", "%s/lib%s.def", "%s/%s.dll", "%s/lib%s.dll", "%s/lib%s.a", NULL };
+     const char **pp = s->static_link ? libs + 4 : libs;
+ #else
+     const char *libs[] = { "%s/lib%s.so", "%s/lib%s.a", NULL };
+     const char **pp = s->static_link ? libs + 1 : libs;
+ #endif
++#endif
+     while (*pp) {
+         if (0 == tcc_add_library_internal(s, *pp,
+             libraryname, 0, s->library_paths, s->nb_library_paths))
+             return 0;
+         ++pp;
+     }
+     return -1;
+ }
+ 
+ LIBTCCAPI int tcc_add_symbol(TCCState *s, const char *name, const void *val)
+@@ -1336,26 +1410,30 @@
          put_stabs("", 0, 0, 0, 0);
      }
  
@@ -527,8 +556,32 @@
      s->tcc_lib_path = tcc_strdup(path);
  }
  
+@@ -1796,21 +1874,23 @@
+             s->do_debug = 1;
+             break;
+ #endif
+         case TCC_OPTION_g:
+             s->do_debug = 1;
+             break;
+         case TCC_OPTION_c:
+             s->output_type = TCC_OUTPUT_OBJ;
+             break;
+         case TCC_OPTION_static:
++#ifndef CONFIG_TCC_STATIC_LINK_ONLY
+             s->static_link = 1;
++#endif
+             break;
+         case TCC_OPTION_shared:
+             s->output_type = TCC_OUTPUT_DLL;
+             break;
+         case TCC_OPTION_soname:
+             s->soname = tcc_strdup(optarg);
+             break;
+         case TCC_OPTION_m:
+             s->option_m = tcc_strdup(optarg);
+             break;
 --- orig/tcc-0.9.26/tcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.c	2023-07-02 13:26:13.166123575 +0200
++++ tcc-0.9.26/tcc.c	2024-06-06 04:22:59.429316557 +0200
 @@ -19,21 +19,21 @@
   */
  
@@ -635,7 +688,31 @@
  # ifdef TCC_TARGET_PE
          " Win64"
  # endif
-@@ -313,20 +331,24 @@
+@@ -216,21 +234,23 @@
+ # endif
+ #endif
+         ")\n", TCC_VERSION);
+         break;
+     case 1:
+         printf("install: %s/\n", s->tcc_lib_path);
+         /* print_paths("programs", NULL, 0); */
+         print_paths("crt", s->crt_paths, s->nb_crt_paths);
+         print_paths("libraries", s->library_paths, s->nb_library_paths);
+         print_paths("include", s->sysinclude_paths, s->nb_sysinclude_paths);
++#ifndef CONFIG_TCC_STATIC_LINK_ONLY
+         printf("elfinterp:\n  %s\n",  CONFIG_TCC_ELFINTERP);
++#endif
+         break;
+     }
+ }
+ 
+ static int64_t getclock_us(void)
+ {
+ #ifdef _WIN32
+     struct _timeb tb;
+     _ftime(&tb);
+     return (tb.time * 1000LL + tb.millitm) * 1000LL;
+@@ -313,20 +333,24 @@
              }
          } else {
              if (1 == s->verbose)
@@ -661,8 +738,35 @@
  #else
              tcc_error_noabort("-run is not available in a cross compiler");
 --- orig/tcc-0.9.26/tccelf.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tccelf.c	2023-06-25 13:47:51.407466022 +0200
-@@ -766,22 +766,22 @@
++++ tcc-0.9.26/tccelf.c	2024-06-06 04:21:40.275954708 +0200
+@@ -13,20 +13,26 @@
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  * Lesser General Public License for more details.
+  *
+  * You should have received a copy of the GNU Lesser General Public
+  * License along with this library; if not, write to the Free Software
+  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  */
+ 
+ #include "tcc.h"
+ 
++#ifdef CONFIG_TCC_STATIC_LINK_ONLY
++#  define IS_STATIC_LINK(s1) (1)
++#else
++#  define IS_STATIC_LINK(s1) ((s1)->static_link)
++#endif
++
+ static int new_undef_sym = 0; /* Is there a new undefined sym since last new_undef_sym() */
+ 
+ ST_FUNC int put_elf_str(Section *s, const char *sym)
+ {
+     int offset, len;
+     char *ptr;
+ 
+     len = strlen(sym) + 1;
+     offset = s->data_offset;
+     ptr = section_ptr_add(s, len);
+@@ -766,22 +772,22 @@
              *(int *)ptr += s1->sym_attrs[sym_index].got_offset;
              break;
          case R_ARM_COPY:
@@ -687,7 +791,7 @@
                  uint32_t orig;
                  
                  /* put the low 16 bits of the absolute address */
-@@ -792,22 +792,22 @@
+@@ -792,22 +798,22 @@
                  
                  //patch both at once - assumes always in pairs Low - High
                  
@@ -712,7 +816,7 @@
              }
              *(long long *)ptr += val;
              break;
-@@ -1339,43 +1339,55 @@
+@@ -1339,43 +1345,55 @@
          pinit[0] = 0xe8;
          put32(pinit + 1, -4);
          sym_index = find_elf_sym(symtab_section, "__bound_init");
@@ -769,7 +873,76 @@
  {
      char buf[1024];
      int i;
-@@ -2333,21 +2345,21 @@
+@@ -1569,21 +1587,21 @@
+     interp = NULL;
+     dynamic = NULL;
+     dynstr = NULL; /* avoid warning */
+     saved_dynamic_data_offset = 0; /* avoid warning */
+     
+     if (file_type != TCC_OUTPUT_OBJ) {
+         relocate_common_syms();
+ 
+         tcc_add_linker_symbols(s1);
+ 
+-        if (!s1->static_link) {
++        if (!IS_STATIC_LINK(s1)) {
+             const char *name;
+             int sym_index, index;
+             ElfW(Sym) *esym, *sym_end;
+ 
+             if (file_type == TCC_OUTPUT_EXE) {
+                 char *ptr;
+ 		/* allow override the dynamic loader */
+ 		const char *elfint = getenv("LD_SO");
+ 		if (elfint == NULL)
+ 		    elfint = CONFIG_TCC_ELFINTERP;
+@@ -1811,21 +1829,21 @@
+     section_order[0] = 0;
+     sh_order_index = 1;
+     
+     /* compute number of program headers */
+     switch(file_type) {
+     default:
+     case TCC_OUTPUT_OBJ:
+         phnum = 0;
+         break;
+     case TCC_OUTPUT_EXE:
+-        if (!s1->static_link)
++        if (!IS_STATIC_LINK(s1))
+             phnum = 4 + HAVE_PHDR;
+         else
+             phnum = 2;
+         break;
+     case TCC_OUTPUT_DLL:
+         phnum = 3;
+         break;
+     }
+ 
+     /* allocate strings for section names and decide if an unallocated
+@@ -2187,21 +2205,21 @@
+                 relocate_rel(s1, s);
+             }
+         }
+ 
+         /* get entry point address */
+         if (file_type == TCC_OUTPUT_EXE)
+             ehdr.e_entry = get_elf_sym_addr(s1, "_start", 1);
+         else
+             ehdr.e_entry = text_section->sh_addr; /* XXX: is it correct ? */
+     }
+-    if (file_type == TCC_OUTPUT_EXE && s1->static_link)
++    if (file_type == TCC_OUTPUT_EXE && IS_STATIC_LINK(s1))
+         fill_got(s1);
+ 
+     /* write elf file */
+     if (file_type == TCC_OUTPUT_OBJ)
+         mode = 0666;
+     else
+         mode = 0777;
+     unlink(filename);
+     fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, mode); 
+     if (fd < 0) {
+@@ -2333,21 +2351,21 @@
      }
      return ret;
  }
@@ -792,7 +965,7 @@
      uint8_t link_once;         /* true if link once section */
  } SectionMergeInfo;
  
-@@ -2650,21 +2662,21 @@
+@@ -2650,21 +2668,21 @@
      char ar_size[10];           /* file size, printed as decimal */
      char ar_fmag[2];            /* should contain ARFMAG */
  } ArchiveHeader;
@@ -815,7 +988,7 @@
      data = tcc_malloc(size);
      if (read(fd, data, size) != size)
          goto fail;
-@@ -2672,21 +2684,21 @@
+@@ -2672,21 +2690,21 @@
      ar_index = data + 4;
      ar_names = ar_index + nsyms * 4;
  
@@ -838,7 +1011,7 @@
                          ret = -1;
                          goto the_end;
                      }
-@@ -2718,33 +2730,36 @@
+@@ -2718,33 +2736,36 @@
          if (len == 0)
              break;
          if (len != sizeof(hdr)) {
@@ -878,7 +1051,30 @@
                  return -1;
          }
          lseek(fd, file_offset + size, SEEK_SET);
-@@ -3117,13 +3132,12 @@
+@@ -3031,21 +3052,21 @@
+         } else if (t == ')') {
+             break;
+         } else if (t == '-') {
+             t = ld_next(s1, filename, sizeof(filename));
+             if ((t != LD_TOK_NAME) || (filename[0] != 'l')) {
+                 tcc_error_noabort("library name expected");
+                 ret = -1;
+                 goto lib_parse_error;
+             }
+             pstrcpy(libname, sizeof libname, &filename[1]);
+-            if (s1->static_link) {
++            if (IS_STATIC_LINK(s1)) {
+                 snprintf(filename, sizeof filename, "lib%s.a", libname);
+             } else {
+                 snprintf(filename, sizeof filename, "lib%s.so", libname);
+             }
+         } else if (t != LD_TOK_NAME) {
+             tcc_error_noabort("filename expected");
+             ret = -1;
+             goto lib_parse_error;
+         }
+         if (!strcmp(filename, "AS_NEEDED")) {
+@@ -3117,13 +3138,12 @@
                      tcc_error_noabort("unexpected end of file");
                      return -1;
                  } else if (t == ')') {
@@ -1093,7 +1289,7 @@
          q = token_buf;
          if (b == 10 && *q == '0') {
 --- orig/tcc-0.9.26/tcc.h	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tcc.h	2024-05-20 13:31:12.451775609 +0200
++++ tcc-0.9.26/tcc.h	2024-06-06 04:15:41.611007868 +0200
 @@ -28,30 +28,27 @@
  #include "tccboot.h"
  #define CONFIG_TCC_STATIC
@@ -1191,7 +1387,31 @@
  # elif defined CONFIG_MULTIARCHDIR
  #  define CONFIG_TCC_SYSINCLUDEPATHS \
          CONFIG_SYSROOT "/usr/local/include" \
-@@ -902,30 +913,26 @@
+@@ -504,21 +515,23 @@
+     unsigned char plt_thumb_stub:1;
+ #endif
+ };
+ 
+ struct TCCState {
+ 
+     int verbose; /* if true, display some information during compilation */
+     int nostdinc; /* if true, no standard headers are added */
+     int nostdlib; /* if true, no standard libraries are added */
+     int nocommon; /* if true, do not use common symbols for .bss data */
++#ifndef CONFIG_TCC_STATIC_LINK_ONLY
+     int static_link; /* if true, static linking is performed */
++#endif
+     int rdynamic; /* if true, all symbols are exported */
+     int symbolic; /* if true, resolve symbols in the current module first */
+     int alacarte_link; /* if true, only link in referenced objects from archive */
+ 
+     char *tcc_lib_path; /* CONFIG_TCCDIR or -B option */
+     char *soname; /* as specified on the command line (-soname) */
+     char *rpath; /* as specified on the command line (-Wl,-rpath=) */
+ 
+     /* output type, see TCC_OUTPUT_XXX */
+     int output_type;
+@@ -902,30 +915,26 @@
  #include "tcctok.h"
  #undef DEF
  };
