@@ -163,7 +163,7 @@
  
  /* bound check support functions */
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/libtcc.c	2024-06-06 04:17:58.272607128 +0200
++++ tcc-0.9.26/libtcc.c	2024-06-07 12:29:26.379652994 +0200
 @@ -200,34 +200,40 @@
  ST_DATA int mem_cur_size;
  ST_DATA int mem_max_size;
@@ -449,7 +449,7 @@
  #ifdef _WIN32
      tcc_set_lib_path_w32(s);
  #else
-@@ -910,23 +970,28 @@
+@@ -910,23 +970,32 @@
      s->include_stack_ptr = s->include_stack;
  
      /* we add dummy defines for some special macros to speed up tests
@@ -468,6 +468,10 @@
      sprintf(buffer, "%d", a*10000 + b*100 + c);
      tcc_define_symbol(s, "__TINYC__", buffer);
 +#endif
++
++#ifdef CONFIG_PREDEF_UCLIBC
++    tcc_define_symbol(s, "__UCLIBC__", NULL);
++#endif
  
      /* standard defines */
      tcc_define_symbol(s, "__STDC__", NULL);
@@ -478,7 +482,7 @@
      tcc_define_symbol(s, "__i386__", NULL);
      tcc_define_symbol(s, "__i386", NULL);
      tcc_define_symbol(s, "i386", NULL);
-@@ -978,22 +1043,24 @@
+@@ -978,22 +1047,24 @@
  #ifdef TCC_TARGET_PE
      tcc_define_symbol(s, "__WCHAR_TYPE__", "unsigned short");
  #else
@@ -503,7 +507,7 @@
      /* create standard sections */
      text_section = new_section(s, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR);
      data_section = new_section(s, ".data", SHT_PROGBITS, SHF_ALLOC | SHF_WRITE);
-@@ -1036,25 +1103,27 @@
+@@ -1036,25 +1107,27 @@
      /* free all sections */
      for(i = 1; i < s1->nb_sections; i++)
          free_section(s1->sections[i]);
@@ -531,7 +535,7 @@
  
      /* free include paths */
      dynarray_reset(&s1->cached_includes, &s1->nb_cached_includes);
-@@ -1145,36 +1214,36 @@
+@@ -1145,36 +1218,36 @@
      if (!strcmp(ext, "s")) {
          /* non preprocessed assembler */
          ret = tcc_assemble(s1, 0);
@@ -570,7 +574,7 @@
                  void *h;
                  h = dlopen(filename, RTLD_GLOBAL | RTLD_LAZY);
                  if (h)
-@@ -1258,27 +1327,32 @@
+@@ -1258,27 +1331,32 @@
  {
      if (-1 == tcc_add_library_internal(s, "%s/%s",
          filename, 0, s->crt_paths, s->nb_crt_paths))
@@ -603,7 +607,7 @@
  }
  
  LIBTCCAPI int tcc_add_symbol(TCCState *s, const char *name, const void *val)
-@@ -1336,26 +1410,30 @@
+@@ -1336,26 +1414,30 @@
          put_stabs("", 0, 0, 0, 0);
      }
  
@@ -634,7 +638,7 @@
      s->tcc_lib_path = tcc_strdup(path);
  }
  
-@@ -1796,21 +1874,23 @@
+@@ -1796,21 +1878,23 @@
              s->do_debug = 1;
              break;
  #endif
