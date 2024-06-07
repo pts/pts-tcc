@@ -127,7 +127,7 @@ if ! test -f tcc-0.9.26/config.h; then
 fi
 
 # No need to specify -fno-use-linker-plugin here, gcc-7.3 needs it only for linking (thus not with gcc -c).
-CFLAGS='-DCONFIG_TCCDIR="/dev/null" -DTCC_VERSION="0.9.26-2" -DTCC_VERSION10000=926 -DTCC_TARGET_I386 -DCONFIG_TCC_NO_BCHECK -DCONFIG_TCC_STATIC -DCONFIG_TCC_STATIC_LINK_ONLY -DCONFIG_TCC_DATA -DCONFIG_TCC_CRTIN -DCONFIG_PREDEF_UCLIBC -DCONFIG_NO_EXEC -fno-pic -fno-strict-aliasing -W -Wall -Wunused-result -Wno-pointer-sign -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-frame-address -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0'
+CFLAGS='-DCONFIG_TCCDIR="/dev/null" -DTCC_VERSION="0.9.26-2" -DTCC_VERSION10000=926 -DTCC_TARGET_I386 -DCONFIG_TCC_NO_BCHECK -DCONFIG_TCC_STATIC -DCONFIG_TCC_STATIC_LINK_ONLY -DCONFIG_TCC_DATA -DCONFIG_TCC_CRTIN -DCONFIG_PREDEF_UCLIBC -DCONFIG_NO_SYSINCLUDE -DCONFIG_NO_EXEC -fno-pic -fno-strict-aliasing -W -Wall -Wunused-result -Wno-pointer-sign -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-frame-address -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0'
 
 #-rw-r--r-- 1 pts eng 1233128 Nov 27  2010 libc.a
 #-rw-r--r-- 1 pts eng  214376 Nov 27  2010 libm.a

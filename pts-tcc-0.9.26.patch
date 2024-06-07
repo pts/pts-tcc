@@ -163,7 +163,7 @@
  
  /* bound check support functions */
 --- orig/tcc-0.9.26/libtcc.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/libtcc.c	2024-06-07 12:29:26.379652994 +0200
++++ tcc-0.9.26/libtcc.c	2024-06-07 12:44:52.675148112 +0200
 @@ -200,34 +200,40 @@
  ST_DATA int mem_cur_size;
  ST_DATA int mem_max_size;
@@ -607,7 +607,35 @@
  }
  
  LIBTCCAPI int tcc_add_symbol(TCCState *s, const char *name, const void *val)
-@@ -1336,26 +1414,30 @@
+@@ -1294,25 +1372,27 @@
+         ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+         SHN_ABS, name);
+ #endif
+     return 0;
+ }
+ 
+ LIBTCCAPI int tcc_set_output_type(TCCState *s, int output_type)
+ {
+     s->output_type = output_type;
+ 
++#ifndef CONFIG_NO_SYSINCLUDE
+     if (!s->nostdinc) {
+         /* default include paths */
+         /* -isystem paths have already been handled */
+         tcc_add_sysinclude_path(s, CONFIG_TCC_SYSINCLUDEPATHS);
+     }
++#endif
+ 
+     /* if bound checking, then add corresponding sections */
+ #ifdef CONFIG_TCC_BCHECK
+     if (s->do_bounds_check) {
+         /* define symbol */
+         tcc_define_symbol(s, "__BOUNDS_CHECKING_ON", NULL);
+         /* create bounds sections */
+         bounds_section = new_section(s, ".bounds", 
+                                      SHT_PROGBITS, SHF_ALLOC);
+         lbounds_section = new_section(s, ".lbounds", 
+@@ -1336,26 +1416,30 @@
          put_stabs("", 0, 0, 0, 0);
      }
  
@@ -638,7 +666,31 @@
      s->tcc_lib_path = tcc_strdup(path);
  }
  
-@@ -1796,21 +1878,23 @@
+@@ -1708,20 +1792,23 @@
+     tcc_free(sym);
+ }
+ 
+ PUB_FUNC int tcc_parse_args(TCCState *s, int argc, char **argv)
+ {
+     const TCCOption *popt;
+     const char *optarg, *r;
+     int run = 0;
+     int pthread = 0;
+     int optind = 0;
++#if defined(CONFIG_NO_SYSINCLUDE)
++    char no_sysinclude = 1;
++#endif
+ 
+     /* collect -Wl options for input such as "-Wl,-rpath -Wl,<path>" */
+     CString linker_arg;
+     cstr_new(&linker_arg);
+ 
+     while (optind < argc) {
+ 
+         r = argv[optind++];
+         if (r[0] != '-' || r[1] == '\0') {
+             /* add a new file */
+@@ -1796,43 +1883,51 @@
              s->do_debug = 1;
              break;
  #endif
@@ -662,6 +714,59 @@
          case TCC_OPTION_m:
              s->option_m = tcc_strdup(optarg);
              break;
+         case TCC_OPTION_o:
+             s->outfile = tcc_strdup(optarg);
+             break;
+         case TCC_OPTION_r:
+             /* generate a .o merging several output files */
+             s->option_r = 1;
+             s->output_type = TCC_OUTPUT_OBJ;
+             break;
+         case TCC_OPTION_isystem:
++#if defined(CONFIG_NO_SYSINCLUDE)
++            no_sysinclude = 0;
++#endif
+             tcc_add_sysinclude_path(s, optarg);
+             break;
+         case TCC_OPTION_nostdinc:
++#if defined(CONFIG_NO_SYSINCLUDE)
++            no_sysinclude = 0;
++#endif
+             s->nostdinc = 1;
+             break;
+         case TCC_OPTION_nostdlib:
+             s->nostdlib = 1;
+             break;
+         case TCC_OPTION_print_search_dirs:
+             s->print_search_dirs = 1;
+             break;
+         case TCC_OPTION_run:
+             s->output_type = TCC_OUTPUT_MEMORY;
+@@ -1884,20 +1979,24 @@
+             break;
+         default:
+             if (s->warn_unsupported) {
+             unsupported_option:
+                 tcc_warning("unsupported option '%s'", r);
+             }
+             break;
+         }
+     }
+ 
++#if defined(CONFIG_NO_SYSINCLUDE)
++    if (no_sysinclude) tcc_define_symbol(s, "__NO_SYSINCLUDE__", NULL);  /* Don't try `#include <stdio.h>', `#include <stdarg.h>' etc., there are no libc include files or they are broken (e.g. libc mismatch). */
++#endif
++
+     if (pthread && s->output_type != TCC_OUTPUT_OBJ)
+         tcc_set_options(s, "-lpthread");
+ 
+     tcc_set_linker(s, (const char *)linker_arg.data);
+     cstr_free(&linker_arg);
+ 
+     return optind;
+ }
+ 
+ LIBTCCAPI int tcc_set_options(TCCState *s, const char *str)
 --- orig/tcc-0.9.26/tcc.c	2013-02-15 15:24:00.000000000 +0100
 +++ tcc-0.9.26/tcc.c	2024-06-06 04:22:59.429316557 +0200
 @@ -19,21 +19,21 @@
