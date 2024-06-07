@@ -1,6 +1,6 @@
 --- orig/tcc-0.9.26/i386-gen.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/i386-gen.c	2024-06-07 11:45:48.005932183 +0200
-@@ -357,20 +357,68 @@
++++ tcc-0.9.26/i386-gen.c	2024-06-07 12:00:11.355558872 +0200
+@@ -357,20 +357,77 @@
          /* otherwise, indirect call */
          r = gv(RC_INT);
          o(0xff); /* call/jmp *r */
@@ -11,6 +11,29 @@
  static uint8_t fastcall_regs[3] = { TREG_EAX, TREG_EDX, TREG_ECX };
  static uint8_t fastcallw_regs[2] = { TREG_ECX, TREG_EDX };
  
++/* op: 0xa4 == movsb; 0xaa == stosb. */
++static void gen_rep_str(unsigned count, unsigned op) {
++    switch (count) {
++      case 0: break;
++      case 3: c3: g(op);  /* fall through */
++      case 2: c2: g(op);  /* fall through */
++      case 1: c1: g(op); break;
++      case 6: g(op);  /* fall through */
++      case 5: g(op);  /* fall through */
++      case 4: ++op; goto c1;
++      case 8: ++op; goto c2;
++      case 12: ++op; goto c3;
++      case 16: ++op; c16: g(op); goto c3;
++      case 20: ++op; c20: g(op); goto c16;
++      case 24: ++op; g(op); goto c20;
++      default:
++        if (!(count & 3)) { count >>= 2; ++op; }
++        g(0xb9); gen_le32(count);  /* mov ecx, count */
++        g(0xf3);  /* rep ... */
++        g(op);  /* movsb (or) stdosb */
++    }
++}
++
 +ST_FUNC void gen_memcpy(unsigned size) {
 +    g(0x50 + gv(RC_INT)); vtop--;  /* Arg 2: src (EAX, ESI). */
 +    g(0x50 + gv(RC_INT)); vtop--;  /* Arg 1: dest (EDX, EDI). */
@@ -20,14 +43,7 @@
 +    if (!size) return;
 +    g(0x96);  /* xchg eax, esi */
 +    o(0xd787);  /* xchg edx, edi */
-+    if (size >= 7) {
-+        g(0xb9); gen_le32(size);  /* mov ecx, size */
-+        o(0xa4f3);  /* rep movsb */
-+    } else {
-+        for (; size != 0; --size) {
-+            g(0xa4);  /* movsb */  /* TODO(pts): Use movsd, stosd if (size & 3) == 0. */
-+        }
-+    }
++    gen_rep_str(size, 0xa4);  /* movsb */
 +    o(0xd789);  /* mov edi, edx */  /* Restore original value of EDI. */
 +    g(0x96);  /* xchg esi, eax */  /* Restore original value of ESI. */
 +}
@@ -39,14 +55,7 @@
 +    if (!size) return;
 +    o(0xc031);  /* xor eax, eax */
 +    o(0xd787);  /* xchg edx, edi */
-+    if (size >= 7) {
-+        g(0xb9); gen_le32(size);  /* mov ecx, size */
-+        o(0xaaf3);  /* rep stosb */
-+    } else {
-+        for (; size != 0; --size) {
-+            g(0xaa);  /* stosb */
-+        }
-+    }
++    gen_rep_str(size, 0xaa);  /* stosb */
 +    o(0xd789);  /* mov edi, edx */  /* Restore original value of EDI. */
 +}
 +
@@ -69,7 +78,7 @@
      
      args_size = 0;
      for(i = 0;i < nb_args; i++) {
-@@ -437,24 +485,22 @@
+@@ -437,24 +494,22 @@
          for(i = 0;i < fastcall_nb_regs; i++) {
              if (args_size <= 0)
                  break;
@@ -95,7 +104,7 @@
  #else
  #define FUNC_PROLOG_SIZE 9
  #endif
-@@ -519,20 +565,22 @@
+@@ -519,20 +574,22 @@
              addr += size;
          }
          sym_push(sym->v & ~SYM_FIELD, type,
@@ -118,7 +127,7 @@
      if (tcc_state->do_bounds_check) {
          oad(0xb8, 0); /* lbound section pointer */
          oad(0xb8, 0); /* call to function */
-@@ -1005,22 +1053,32 @@
+@@ -1005,22 +1062,32 @@
          } else {
              o(0x04c483); /* add $4, %esp */
          }
