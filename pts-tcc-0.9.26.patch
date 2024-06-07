@@ -1,6 +1,6 @@
 --- orig/tcc-0.9.26/i386-gen.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/i386-gen.c	2024-06-07 10:59:30.215479419 +0200
-@@ -357,20 +357,47 @@
++++ tcc-0.9.26/i386-gen.c	2024-06-07 11:45:48.005932183 +0200
+@@ -357,20 +357,68 @@
          /* otherwise, indirect call */
          r = gv(RC_INT);
          o(0xff); /* call/jmp *r */
@@ -11,6 +11,27 @@
  static uint8_t fastcall_regs[3] = { TREG_EAX, TREG_EDX, TREG_ECX };
  static uint8_t fastcallw_regs[2] = { TREG_ECX, TREG_EDX };
  
++ST_FUNC void gen_memcpy(unsigned size) {
++    g(0x50 + gv(RC_INT)); vtop--;  /* Arg 2: src (EAX, ESI). */
++    g(0x50 + gv(RC_INT)); vtop--;  /* Arg 1: dest (EDX, EDI). */
++    save_regs(0); /* save used temporary registers */
++    g(0x5a);  /* pop edx ;(dest) */
++    g(0x58);  /* pop eax ;(src) */
++    if (!size) return;
++    g(0x96);  /* xchg eax, esi */
++    o(0xd787);  /* xchg edx, edi */
++    if (size >= 7) {
++        g(0xb9); gen_le32(size);  /* mov ecx, size */
++        o(0xa4f3);  /* rep movsb */
++    } else {
++        for (; size != 0; --size) {
++            g(0xa4);  /* movsb */  /* TODO(pts): Use movsd, stosd if (size & 3) == 0. */
++        }
++    }
++    o(0xd789);  /* mov edi, edx */  /* Restore original value of EDI. */
++    g(0x96);  /* xchg esi, eax */  /* Restore original value of ESI. */
++}
++
 +ST_FUNC void gen_memset0(unsigned size) {
 +    g(0x50 + gv(RC_INT)); vtop--;  /* Arg 1: s (EDX, EDI). */
 +    save_regs(0); /* save used temporary registers */
@@ -19,12 +40,12 @@
 +    o(0xc031);  /* xor eax, eax */
 +    o(0xd787);  /* xchg edx, edi */
 +    if (size >= 7) {
-+      g(0xb9); gen_le32(size);  /* mov ecx, size */
-+      o(0xaaf3);  /* rep stosb */
++        g(0xb9); gen_le32(size);  /* mov ecx, size */
++        o(0xaaf3);  /* rep stosb */
 +    } else {
-+      for (; size != 0; --size) {
-+        g(0xaa);  /* stosb */
-+      }
++        for (; size != 0; --size) {
++            g(0xaa);  /* stosb */
++        }
 +    }
 +    o(0xd789);  /* mov edi, edx */  /* Restore original value of EDI. */
 +}
@@ -48,7 +69,7 @@
      
      args_size = 0;
      for(i = 0;i < nb_args; i++) {
-@@ -437,24 +464,22 @@
+@@ -437,24 +485,22 @@
          for(i = 0;i < fastcall_nb_regs; i++) {
              if (args_size <= 0)
                  break;
@@ -74,7 +95,7 @@
  #else
  #define FUNC_PROLOG_SIZE 9
  #endif
-@@ -519,20 +544,22 @@
+@@ -519,20 +565,22 @@
              addr += size;
          }
          sym_push(sym->v & ~SYM_FIELD, type,
@@ -97,7 +118,7 @@
      if (tcc_state->do_bounds_check) {
          oad(0xb8, 0); /* lbound section pointer */
          oad(0xb8, 0); /* call to function */
-@@ -1005,22 +1032,32 @@
+@@ -1005,22 +1053,32 @@
          } else {
              o(0x04c483); /* add $4, %esp */
          }
@@ -1137,8 +1158,92 @@
  }
  #endif /* ndef TCC_TARGET_PE */
 --- orig/tcc-0.9.26/tccgen.c	2013-02-15 15:24:00.000000000 +0100
-+++ tcc-0.9.26/tccgen.c	2024-06-07 10:59:55.496229835 +0200
-@@ -4123,22 +4123,22 @@
++++ tcc-0.9.26/tccgen.c	2024-06-07 11:31:52.065119069 +0200
+@@ -2348,20 +2348,24 @@
+             type_to_str(buf1, sizeof(buf1), st, NULL);
+             type_to_str(buf2, sizeof(buf2), dt, NULL);
+             tcc_error("cannot cast '%s' to '%s'", buf1, buf2);
+         }
+         break;
+     }
+  type_ok:
+     gen_cast(dt);
+ }
+ 
++#if defined TCC_TARGET_I386
++ST_FUNC void gen_memcpy(unsigned size);
++#endif
++
+ /* store vtop in lvalue pushed on stack */
+ ST_FUNC void vstore(void)
+ {
+     int sbt, dbt, ft, r, t, size, align, bit_size, bit_pos, rc, delayed_cast;
+ 
+     ft = vtop[-1].type.t;
+     sbt = vtop->type.t & VT_BTYPE;
+     dbt = ft & VT_BTYPE;
+     if ((((sbt == VT_INT || sbt == VT_SHORT) && dbt == VT_BYTE) ||
+          (sbt == VT_INT && dbt == VT_SHORT))
+@@ -2375,46 +2379,53 @@
+     } else {
+         delayed_cast = 0;
+         if (!(ft & VT_BITFIELD))
+             gen_assign_cast(&vtop[-1].type);
+     }
+ 
+     if (sbt == VT_STRUCT) {
+         /* if structure, only generate pointer */
+         /* structure assignment : generate memcpy */
+         /* XXX: optimize if small size */
+-        if (!nocode_wanted) {
+-            size = type_size(&vtop->type, &align);
+-
++        if (!nocode_wanted && (size = type_size(&vtop->type, &align)) != 0) {
+             /* destination */
+             vswap();
+             vtop->type.t = VT_PTR;
+             gaddrof();
+ 
+             /* address of memcpy() */
+ #ifdef TCC_ARM_EABI
+             if(!(align & 7))
+                 vpush_global_sym(&func_old_type, TOK_memcpy8);
+             else if(!(align & 3))
+                 vpush_global_sym(&func_old_type, TOK_memcpy4);
+             else
+-#endif
++                vpush_global_sym(&func_old_type, TOK_memcpy);
++#else
++#if defined TCC_TARGET_I386
++            /* source */
++            vpushv(vtop - 1);
++            vtop->type.t = VT_PTR;
++            gaddrof();
++            gen_memcpy(size);
++#else
+             vpush_global_sym(&func_old_type, TOK_memcpy);
+-
+             vswap();
+             /* source */
+             vpushv(vtop - 2);
+             vtop->type.t = VT_PTR;
+             gaddrof();
+             /* type size */
+             vpushi(size);
+             gfunc_call(3);
++#endif
++#endif
+         } else {
+             vswap();
+             vpop();
+         }
+         /* leave source on stack */
+     } else if (ft & VT_BITFIELD) {
+         /* bitfield store handling */
+         bit_pos = (ft >> VT_STRUCT_SHIFT) & 0x3f;
+         bit_size = (ft >> (VT_STRUCT_SHIFT + 6)) & 0x3f;
+         /* remove bit field info to avoid loops */
+@@ -4123,22 +4134,22 @@
                  if (is_float(vtop->type.t)) {
                      rc = RC_FLOAT;
  #ifdef TCC_TARGET_X86_64
@@ -1163,7 +1268,7 @@
              }
              type1 = vtop->type;
              sv = *vtop; /* save value to handle it later */
-@@ -4894,20 +4894,21 @@
+@@ -4894,20 +4905,21 @@
              (bt == VT_BYTE ||
               bt == VT_SHORT ||
               bt == VT_DOUBLE ||
@@ -1185,7 +1290,7 @@
              *(double *)ptr = vtop->c.d;
              break;
          case VT_LDOUBLE:
-@@ -4925,66 +4926,95 @@
+@@ -4925,66 +4937,95 @@
          }
          vtop--;
      } else {
